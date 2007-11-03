@@ -37,17 +37,20 @@ public:
 private slots:
   void open();
   void save();
+  void undo();
+  void repeat();  
   void copy();
   void paste();  
   void print();
   void resizeButtonClicked();
-  void scResize(int newWidth, int newHeight);
+  void cairResize(int newWidth, int newHeight);  
   void clearMask();
   void paintMask(QPointF oldPos, QPointF newPos);
   void zoomIn();
   void zoomOut();
   void normalSize();
   void about();
+  void changeView(QAction* view);
 
 private:
   void dragEnterEvent(QDragEnterEvent *event);
@@ -61,6 +64,7 @@ private:
   void updateActions();
   void scaleImage(double factor);
   void adjustScrollBar(QScrollBar *scrollBar, double factor);
+  void addToUndoStack(QImage img);
 
   QString _filter;
   QImage _img;
@@ -72,6 +76,8 @@ private:
   QGraphicsPixmapItem *_imgItem;
   QGraphicsPixmapItem *_maskItem;
   double _scaleFactor;
+  QVector<QImage> _undoStack;
+  int _undoStackPos;
 
   QPrinter _printer;
 
@@ -79,8 +85,15 @@ private:
   QAction *_saveAct;  
   QAction *_printAct;
   QAction *_exitAct;
+  QAction *_undoAct;
+  QAction *_repeatAct;
   QAction *_copyAct;
   QAction *_pasteAct;
+  QAction *_viewImage;
+  QAction *_viewGreyscale;
+  QAction *_viewEdge;
+  QAction *_viewEnergy;
+  QActionGroup *_viewGroup; 
   QAction *_zoomInAct;
   QAction *_zoomOutAct;
   QAction *_normalSizeAct;

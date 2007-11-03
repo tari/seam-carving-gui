@@ -22,9 +22,54 @@
 #include <QGraphicsView>
 
 #include "mainwindow.h"
-#include "resize.h"
 
-// #define DEBUG
+#include "cair/CAIR_CML.h"
+#include "cair/CAIR.h"
+#include <vector>
+
+
+QProgressDialog *gProg;
+int updateCallback(int)
+{
+  qApp->processEvents();
+  gProg->setValue(gProg->value()+1);
+  if(gProg->wasCanceled())
+    return 0; //false, exit out
+  return 1;
+}
+
+//assumes dest is already set to have the save size as source
+static void QImagetoCML(QImage source, CML_color &dest)
+{
+  CML_RGBA p;
+  for( int j=0; j<source.height(); j++ )
+  {
+    for( int i=0; i<source.width(); i++ )
+    {
+      p.red = qRed( source.pixel(i, j) );
+      p.green = qGreen( source.pixel(i, j) );
+      p.blue = qBlue( source.pixel(i, j) );
+      p.alpha = qAlpha( source.pixel(i, j) );
+      dest[i][j] = p;
+    }
+  }
+}
+
+static QImage CMLtoQImage(CML_color &source)
+{
+  CML_RGBA p;
+  QImage newImg = QImage(source.Width(), source.Height(), QImage::Format_RGB32);
+  for( int j=0; j<source.Height(); j++ )
+  {
+    for( int i=0; i<source.Width(); i++ )
+    {
+      p = source[i][j];
+      newImg.setPixel(i, j, qRgba( p.red, p.green, p.blue, p.alpha ));
+    }
+  }
+  return newImg;
+}
+
 
 /// To get a decent size on the dock widget
 class DockWrapper : public QWidget
@@ -47,7 +92,7 @@ void ImageScene::mousePressEvent(QGraphicsSceneMouseEvent * e )
 }
 
 MainWindow::MainWindow()
-  : _imgItem(0), _maskItem(0)
+  : _imgItem(0), _maskItem(0), _undoStackPos(0)
 {
   //Create an image filter
   _filter = "Images (";
@@ -108,6 +153,7 @@ void MainWindow::openFile(QString fileName)
                              tr("Cannot load %1.").arg(fileName));
     return;
   }
+  addToUndoStack(image);
   openImage(image);
 }
 
@@ -135,6 +181,10 @@ void MainWindow::openImage(QImage image)
   _saveAct->setEnabled(true);
   _resizeDock->setEnabled(true);
   _copyAct->setEnabled(true);
+  _viewImage->setEnabled(true);
+  _viewGreyscale->setEnabled(true);
+  _viewEdge->setEnabled(true);
+  _viewEnergy->setEnabled(true);
   _resizeWidget.heightLineEdit->setText(QString::number(_img.height()));
   _resizeWidget.widthLineEdit->setText(QString::number(_img.width()));
   updateActions();
@@ -147,6 +197,28 @@ void MainWindow::save()
     return;
   if(!_img.save(f))
     QMessageBox::information(this,"Error Saving",QString("Could not save to file: %1").arg(f));
+}
+
+void MainWindow::undo()
+{
+  if(_undoStackPos > 1)
+  {
+    _undoStackPos--;
+    openImage(_undoStack[_undoStackPos]);
+    _undoAct->setEnabled( _undoStackPos > 1 );
+    _repeatAct->setEnabled( _undoStackPos < _undoStack.size()-1 );    
+  }
+}
+
+void MainWindow::repeat()
+{
+  if(_undoStackPos < _undoStack.size()-1)
+  {
+    _undoStackPos++;
+    openImage(_undoStack[_undoStackPos]);
+    _undoAct->setEnabled( _undoStackPos > 1 );
+    _repeatAct->setEnabled( _undoStackPos < _undoStack.size()-1 );
+  }
 }
 
 void MainWindow::copy()
@@ -218,12 +290,11 @@ void MainWindow::resizeButtonClicked()
 {
   int newWidth = _resizeWidget.widthLineEdit->text().toInt();
   int newHeight = _resizeWidget.heightLineEdit->text().toInt();
-  scResize(newWidth, newHeight);
+  cairResize(newWidth, newHeight);
 }
 
-void MainWindow::scResize(int newWidth, int newHeight)
+void MainWindow::cairResize(int newWidth, int newHeight)
 {
-  //Convert pixmap to image format:
   int width = _img.width();
   int height = _img.height();
   if(newWidth < 1 || newHeight < 1)
@@ -234,168 +305,40 @@ void MainWindow::scResize(int newWidth, int newHeight)
   }
   if(width == newWidth && height == newHeight)
     return;
-  Image tmp = createImage(width,height);
-  unsigned char *data = imageData(tmp);
-  Mask msk = createMask(width, height);
-  signed char *mskData = maskData(msk);
 
-  QImage mskImg = _maskPix.toImage();
-
-  //Figure out how much we are changing and set up a progress
   int widthAdjustment = (width < newWidth ? newWidth - width : width - newWidth);
   int heightAdjustment = (height < newHeight ? newHeight - height : height - newHeight);
-  QProgressDialog p("Resizing", "&Cancel", 0, widthAdjustment + heightAdjustment, this);
-  int howMuch; //scratch var
+  QProgressDialog prog("Resizing", "&Cancel", 0, widthAdjustment + heightAdjustment, this);
+  gProg = &prog;
   qApp->processEvents();
-
-  //Copy image data
-  for (int y = height - 1; y >= 0; y--) {
-    for (int x = 0; x < width; x++) {
-      QRgb c = _img.pixel(x,y);
-      data[(y * width + x) * 3] = qBlue(c);
-      data[(y * width + x) * 3 + 1] = qGreen(c);
-      data[(y * width + x) * 3 + 2] = qRed(c);
-      QRgb m = mskImg.pixel(x,y);
+  
+  //Transfer the image over to cair image format.
+  CML_color source(width, height);
+  CML_color dest(width, height);  
+  CML_int weights(width, height);
+  QImagetoCML(_img,source);
+  QImage mskImg = _maskPix.toImage();
+  for( int j=0; j<height; j++ )
+  {
+    for( int i=0; i<width; i++ )
+    {
+      QRgb m = mskImg.pixel(i,j);
       if(qGreen(m) == 255)
-        mskData[y * width + x] = 1;
+        weights[i][j] = qAlpha(m) * 10;
       else if(qRed(m) == 255)
-        mskData[y * width + x] = -1;
+        weights[i][j] = qAlpha(m) * -10;
       else
-        mskData[y * width + x] = 0;
+        weights[i][j] = 0;
     }
   }
-
-  //Horizontal scaling
-  if(widthAdjustment)
-  {
-    if(width < newWidth)
-    {
-      //Expand width
-      howMuch = newWidth - width; 
-      for(int i=0; i<howMuch; i++)
-      {
-        tmp = makeWider(tmp,msk);
-        p.setValue(p.value()+1);
-        qApp->processEvents();
-        if(p.wasCanceled())
-        {
-          destroyImage(tmp);
-          destroyMask(msk);
-          return;
-        }
-      }
-      width += howMuch;
-    }else
-    {
-      //Reduce width
-      howMuch = width - newWidth;
-      for(int i=0; i<howMuch; i++)
-      {
-        tmp = makeNarrower(tmp,msk);
-        p.setValue(p.value()+1);
-        qApp->processEvents();
-        if(p.wasCanceled())
-        {
-          destroyImage(tmp);
-          destroyMask(msk);
-          return;
-        }
-      }
-      width -= howMuch;
-    }
-    data = imageData(tmp); //In case it was reallocated
-    if(!heightAdjustment)
-      destroyMask(msk);
-    else
-      mskData = maskData(msk);
-  }
-  if(heightAdjustment)
-  {
-    //Flipt the image
-    Image htmp = createImage(height, width);//backward dimentions
-    unsigned char *hdata = imageData(htmp);
-    Mask  hmsk = createMask(height, width);
-    signed char *hmskData = maskData(hmsk);
-    
-    for (int y = height - 1; y >= 0; y--) {
-      for (int x = 0; x < width; x++) {
-        hdata[(x * height + y) * 3] = data[(y * width + x) * 3];
-        hdata[(x * height + y) * 3 + 1] = data[(y * width + x) * 3 + 1];
-        hdata[(x * height + y) * 3 + 2] = data[(y * width + x) * 3 + 2];
-        hmskData[x * height + y] = mskData[y * width + x];
-      }
-    }
-    destroyImage(tmp);
-    destroyMask(msk);
-#ifdef DEBUG
-    saveImage(htmp, "beforeout.bmp");
-#endif
-    //Now run the algorithm
-    if(height < newHeight)
-    {
-      //Expand width
-      howMuch = newHeight - height;
-      for(int i=0; i<howMuch; i++)
-      {
-        htmp = makeWider(htmp,hmsk);
-        p.setValue(p.value()+1);
-        qApp->processEvents();
-        if(p.wasCanceled())
-        {
-          destroyImage(htmp);
-          destroyMask(hmsk);          
-          return;
-        }
-      }
-      height += howMuch;
-    }else
-    {
-      //Reduce width
-      howMuch = height - newHeight;
-      for(int i=0; i<howMuch; i++)
-      {
-        htmp = makeNarrower(htmp,hmsk);
-        p.setValue(p.value()+1);
-        qApp->processEvents();
-        if(p.wasCanceled())
-        {
-          destroyImage(htmp);
-          destroyMask(hmsk);                    
-          return;
-        }
-      }
-      height -= howMuch;
-    }
-#ifdef DEBUG
-    saveImage(htmp, "afterout.bmp");
-#endif    
-    //Flip back the image
-    hdata = imageData(htmp);
-    tmp = createImage(width,height);
-    data = imageData(tmp);
-    for (int y = height - 1; y >= 0; y--) {
-      for (int x = 0; x < width; x++) {
-        data[(y * width + x) * 3] = hdata[(x * height + y) * 3];
-        data[(y * width + x) * 3 + 1] = hdata[(x * height + y) * 3 + 1];
-        data[(y * width + x) * 3 + 2] = hdata[(x * height + y) * 3 + 2];
-      }
-    }
-    destroyImage(htmp);
-    destroyMask(hmsk);          
-  }
-#ifdef DEBUG
-  saveImage(tmp, "finalout.bmp");
-#endif
-  QImage newImg(width,height, QImage::Format_RGB32); //In future, use constructor that takes data pointer
-  data = imageData(tmp); //In case it was reallocated
-  for (int y = height - 1; y >= 0; y--) {
-    for (int x = 0; x < width; x++) {
-      newImg.setPixel(x, y, qRgb( data[(y * width + x) * 3 + 2],
-                                  data[(y * width + x) * 3 + 1],
-                                  data[(y * width + x) * 3] ));
-    }
-  }  
-  destroyImage(tmp);
+  //Call CAIR
+  double quality = _resizeWidget.qualitySlider->value() / 100.0;
+  int add_weight = 75;
+  CAIR( &source, &weights, newWidth, newHeight, quality, add_weight, &dest, updateCallback );
+  if(prog.wasCanceled())
+    return;
+  QImage newImg = CMLtoQImage(dest);
+  addToUndoStack(newImg);
   _img = newImg;
   _imgItem->setPixmap(QPixmap::fromImage(_img));
   clearMask();
@@ -414,6 +357,7 @@ void MainWindow::paintMask(QPointF oldPos, QPointF newPos)
   //qDebug("paintMaks %f %f %f %f", oldPos.x(), oldPos.y(), newPos.x(), newPos.y());
   QPainter painter(&_maskPix);
   QColor penColor = (_resizeWidget.retainRadio->isChecked() ? Qt::green : Qt::red);
+  penColor.setAlpha( int(255 * (_resizeWidget.brushWeightSlider->value() / 180.0)) );
   painter.setPen(QPen( QBrush(penColor), _resizeWidget.brushSizeSlider->value()) );
   painter.drawLine(oldPos, newPos);
   _maskItem->setPixmap(_maskPix);
@@ -439,21 +383,51 @@ void MainWindow::about()
 {
   QMessageBox::about(this, tr("About Seam Carving GUI"),
                      tr(
-                       "<p>The <b>Seam Carving GUI</b> is a simple GUI front end to the "
-                       "implementation of the Seam Carving algorithm by Andy Owen "
-                       "(<a href=\"http://ultra-premium.com/b\">http://ultra-premium.com/b</a>).</p>"
-                       "<p>I ran into Andy's comment to the Slashdot article about Content-Aware "
-                       "Image Resizing "
-                       "(<a href=\"http://science.slashdot.org/article.pl?sid=07/08/25/1835256\">http://science.slashdot.org/article.pl?sid=07/08/25/1835256</a>) and decided "
-                       "his late night hack was cool enough to deserve a easy to use "
-                       "interface. Besides, after a few days of seeing the impressive demonstration "
-                       "video (<a href=\"http://www.youtube.com/watch?v=vIFCV2spKtg\">http://www.youtube.com/watch?v=vIFCV2spKtg</a>) about the SIGGRAPH "
-                       "paper on seam carving (<a href=\"http://www.faculty.idc.ac.il/arik\">http://www.faculty.idc.ac.il/arik</a>) I found myself "
-                       "wishing I could be doing seam carving on some images of my own.</p>"
-                       "<p>Enjoy, if you have any questions or suffer from the undeniable urge to "
-                       "lavishly complement this quick hack of a GUI, you can reach me at "
-                       "<a href=\"mailto:gaberudy+seamcarving@gmail.com\">gaberudy+seamcarving@gmail.com</a></p>"
+"<p>The <b>Seam Carving GUI</b> is a GUI front end to <a href=\"http://brain.recall.googlepages.com/cair\">CAIR</a>, which is an "
+"implementation of Arial Shamir's seam carving algorithm.</p>"
+""
+"<p>I ran into a comment by Andy Owen re the <a href=\"http://science.slashdot.org/article.pl?sid=07/08/25/1835256\">Slashdot article</a> about "
+"Content-Aware Image Resizing and decided his late night hack was cool "
+"enough to deserve an easy to use interface. Besides, after a few days of "
+"seeing the impressive <a href=\"http://www.youtube.com/watch?v=vIFCV2spKtg\">demonstration video</a> about the SIGGRAPH <a href=\"http://www.faculty.idc.ac.il/arik\">paper on "
+"seam carving</a> I found myself wishing I could be doing seam carving on "
+"some images of my own.</p>"
+""
+"<p>Thus version 1 and 2 of the <b>Seam Carving GUI</b> came to be. Andy has "
+"moved onto other things and I got an email from Brain_Recall (Joe) about "
+"his work on writing a more true to the paper form of the algorithm. His "
+"stuff looked really quite impressive so I egged him on. Once his code was "
+"functionally complete I change the <b>Seam Carving GUI</b> to use CAIR for the "
+"backend. Not only does his code work much better for stretching images "
+"(and in general), but it's also multi-threaded and has a couple cool new "
+"features. So with the new backend, the Seam Carving GUI reaches version "
+"3.</p>"
+""
+"<p>Enjoy! If you have questions, complaints, or have a cool project you used "
+"this on, feel free to try and reach me at <a href=\"mailto:gaberudy+seamcarving@gmail.com\">gaberudy+seamcarving@gmail.com</a>, "
+"and if I haven't completely abandoned this project I may get back to you!</p>"
+""
+"<p>For more information and updates goto: <a href=\"http://gabeiscoding.com\">http://gabeiscoding.com</a></p>"
                         ));
+}
+
+void MainWindow::changeView(QAction *view)
+{
+  if(view == _viewImage)
+  {
+    _imgItem->setPixmap(QPixmap::fromImage(_img));
+    return;
+  }
+  CML_color source(_img.width(), _img.height());
+  CML_color dest(_img.width(), _img.height());
+  QImagetoCML(_img,source);
+  if(view == _viewGreyscale)
+    CAIR_Grayscale( &source, &dest );
+  if(view == _viewEdge)
+    CAIR_Edge( &source, &dest );
+  if(view == _viewEnergy)
+    CAIR_Energy( &source, &dest );
+  _imgItem->setPixmap(QPixmap::fromImage(CMLtoQImage(dest)));
 }
 
 void MainWindow::createActions()
@@ -476,6 +450,16 @@ void MainWindow::createActions()
   _exitAct->setShortcut(tr("Ctrl+Q"));
   connect(_exitAct, SIGNAL(triggered()), this, SLOT(close()));
 
+  _undoAct = new QAction(tr("&Undo"), this);
+  _undoAct->setShortcut(tr("Ctrl+Z"));
+  _undoAct->setEnabled(false);
+  connect(_undoAct, SIGNAL(triggered()), this, SLOT(undo()));
+
+  _repeatAct = new QAction(tr("&Repeat"), this);
+  _repeatAct->setShortcut(tr("Ctrl+Y"));
+  _repeatAct->setEnabled(false);
+  connect(_repeatAct, SIGNAL(triggered()), this, SLOT(repeat()));
+  
   _copyAct = new QAction(tr("&Copy"), this);
   _copyAct->setShortcut(tr("Ctrl+C"));
   _copyAct->setEnabled(false);
@@ -484,7 +468,31 @@ void MainWindow::createActions()
   _pasteAct = new QAction(tr("&Paste"), this);
   _pasteAct->setShortcut(tr("Ctrl+V"));
   connect(_pasteAct, SIGNAL(triggered()), this, SLOT(paste()));
-    
+
+  _viewImage = new QAction(tr("View Image"), this);
+  _viewImage->setShortcut(tr("Ctrl+I"));
+  _viewImage->setCheckable(true); 
+  _viewImage->setEnabled(false);  
+  _viewGreyscale = new QAction(tr("View Greyscale"), this);
+  _viewGreyscale->setShortcut(tr("Ctrl+G"));
+  _viewGreyscale->setCheckable(true);
+  _viewGreyscale->setEnabled(false);  
+  _viewEdge = new QAction(tr("View Edge"), this);
+  _viewEdge->setShortcut(tr("Ctrl+E"));
+  _viewEdge->setCheckable(true);
+  _viewEdge->setEnabled(false);
+  _viewEnergy = new QAction(tr("View Energy"), this);
+  _viewEnergy->setShortcut(tr("Ctrl+N"));
+  _viewEnergy->setCheckable(true);
+  _viewEnergy->setEnabled(false);
+  _viewGroup = new QActionGroup(this);
+  _viewGroup->addAction(_viewImage);
+  _viewGroup->addAction(_viewGreyscale);
+  _viewGroup->addAction(_viewEdge);
+  _viewGroup->addAction(_viewEnergy);
+  connect(_viewGroup, SIGNAL(triggered(QAction*)), this, SLOT(changeView(QAction*)));
+  _viewImage->setChecked(true);
+  
   _zoomInAct = new QAction(tr("Zoom &In (25%)"), this);
   QList<QKeySequence> inSc;
   inSc << tr("Ctrl+=") << tr("Ctrl++");
@@ -518,10 +526,18 @@ void MainWindow::createMenus()
   _fileMenu->addAction(_exitAct);
 
   _editMenu = new QMenu(tr("&Edit"), this);
+  _editMenu->addAction(_undoAct);
+  _editMenu->addAction(_repeatAct);    
+  _editMenu->addSeparator();
   _editMenu->addAction(_copyAct);
   _editMenu->addAction(_pasteAct);    
 
   _viewMenu = new QMenu(tr("&View"), this);
+  _viewMenu->addAction(_viewImage);
+  _viewMenu->addAction(_viewGreyscale);
+  _viewMenu->addAction(_viewEdge);
+  _viewMenu->addAction(_viewEnergy);
+  _viewMenu->addSeparator();
   _viewMenu->addAction(_zoomInAct);
   _viewMenu->addAction(_zoomOutAct);
   _viewMenu->addAction(_normalSizeAct);
@@ -560,3 +576,13 @@ void MainWindow::adjustScrollBar(QScrollBar *scrollBar, double factor)
   scrollBar->setValue(int(factor * scrollBar->value()
                           + ((factor - 1) * scrollBar->pageStep()/2)));
 }
+
+void MainWindow::addToUndoStack(QImage img)
+{
+  _undoStackPos++;
+  _undoStack.resize(_undoStackPos + 1);
+  _undoStack[_undoStackPos] = img;
+  _undoAct->setEnabled( _undoStackPos > 1 );
+  _repeatAct->setEnabled( _undoStackPos < _undoStack.size()-1 );
+}
+
