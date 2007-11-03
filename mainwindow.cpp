@@ -47,6 +47,7 @@ void ImageScene::mousePressEvent(QGraphicsSceneMouseEvent * e )
 }
 
 MainWindow::MainWindow()
+  : _imgItem(0), _maskItem(0)
 {
   //Create an image filter
   _filter = "Images (";
@@ -64,6 +65,9 @@ MainWindow::MainWindow()
   _imgItem = _scene->addPixmap(QPixmap());
   _view = new QGraphicsView(_scene);
   setCentralWidget(_view);
+
+  setAcceptDrops(true);
+  _view->viewport()->installEventFilter(this);
 
   createActions();
   createMenus();
@@ -93,36 +97,47 @@ void MainWindow::open()
 {
   QString fileName = QFileDialog::getOpenFileName(this, tr("Open File"), QDir::currentPath(), _filter);
   if (!fileName.isEmpty()) {
-    QImage image(fileName);
-    if (image.isNull()) {
-      QMessageBox::information(this, tr("Seam Carving GUI"),
-                               tr("Cannot load %1.").arg(fileName));
-      return;
-    }
-    _img = image;
-    delete _scene;
-    _scene = new ImageScene(this);
-    connect(_scene, SIGNAL(mouseMoved(QPointF, QPointF)), this, SLOT(paintMask(QPointF, QPointF)));
-    _scene->setBackgroundBrush(palette().dark());
-    _imgItem = _scene->addPixmap(QPixmap::fromImage(_img));
-
-    _maskPix = QPixmap(_img.width(), _img.height());
-    _maskPix.fill(Qt::transparent);
-    _maskItem = _scene->addPixmap(_maskPix);
-
-    _view->setScene(_scene);
-    
-    _scaleFactor = 1.0;
-
-    _printAct->setEnabled(true);
-    _saveAct->setEnabled(true);
-    _resizeDock->setEnabled(true);
-    _copyAct->setEnabled(true);
-    _pasteAct->setEnabled(true);
-    _resizeWidget.heightLineEdit->setText(QString::number(_img.height()));
-    _resizeWidget.widthLineEdit->setText(QString::number(_img.width()));
-    updateActions();
+    openFile(fileName);
   }
+}
+void MainWindow::openFile(QString fileName)
+{
+  QImage image(fileName);
+  if (image.isNull()) {
+    QMessageBox::information(this, tr("Seam Carving GUI"),
+                             tr("Cannot load %1.").arg(fileName));
+    return;
+  }
+  openImage(image);
+}
+
+void MainWindow::openImage(QImage image)
+{
+  _img = image;
+  delete _scene;
+    
+  _scene = new ImageScene(this);
+  connect(_scene, SIGNAL(mouseMoved(QPointF, QPointF)), this, SLOT(paintMask(QPointF, QPointF)));
+  _scene->setBackgroundBrush(palette().dark());
+  _imgItem = _scene->addPixmap(QPixmap::fromImage(_img));
+  _imgItem->setZValue(1);
+
+  _maskPix = QPixmap(_img.width(), _img.height());
+  _maskPix.fill(Qt::transparent);
+  _maskItem = _scene->addPixmap(_maskPix);
+  _maskItem->setZValue(2); //Always in front of imgItem
+
+  _view->setScene(_scene);
+    
+  _scaleFactor = 1.0;
+
+  _printAct->setEnabled(true);
+  _saveAct->setEnabled(true);
+  _resizeDock->setEnabled(true);
+  _copyAct->setEnabled(true);
+  _resizeWidget.heightLineEdit->setText(QString::number(_img.height()));
+  _resizeWidget.widthLineEdit->setText(QString::number(_img.width()));
+  updateActions();
 }
 
 void MainWindow::save()
@@ -136,12 +151,51 @@ void MainWindow::save()
 
 void MainWindow::copy()
 {
-  QMessageBox::information(this,"Copy", "Copy comming soon!");
+  QClipboard *clipboard = QApplication::clipboard();
+  clipboard->setImage(_img);
 }
 
 void MainWindow::paste()
 {
-  QMessageBox::information(this,"Paste", "Paste comming soon!");
+  QClipboard *clipboard = QApplication::clipboard();
+  QImage image = clipboard->image();
+  if(image.isNull())
+    QMessageBox::information(this, tr("Seam Carving GUI"),
+                             tr("Cannot paste an image from the clipboard."));
+  else
+    openImage(image);
+}
+
+void MainWindow::dragEnterEvent(QDragEnterEvent *event)
+{
+  if(event->mimeData()->hasUrls())
+    event->acceptProposedAction();
+}
+
+void MainWindow::dropEvent(QDropEvent *event)
+{
+  if(event->mimeData()->hasUrls())
+  {
+    QList<QUrl> urls = event->mimeData()->urls();
+    if(urls.size() < 1)
+      return;
+    openFile(urls[0].toLocalFile());
+  }
+}
+
+bool MainWindow::eventFilter(QObject *obj, QEvent *event)
+{
+  if(event->type() == QEvent::DragEnter) {
+    QDragEnterEvent *e = static_cast<QDragEnterEvent *>(event);
+    dragEnterEvent(e);
+    return true;
+  }
+  if(event->type() == QEvent::Drop) {
+    QDropEvent *e = static_cast<QDropEvent *>(event);
+    dropEvent(e);
+    return true;
+  }
+  return QObject::eventFilter(obj,event);
 }
 
 void MainWindow::print()
@@ -172,6 +226,12 @@ void MainWindow::scResize(int newWidth, int newHeight)
   //Convert pixmap to image format:
   int width = _img.width();
   int height = _img.height();
+  if(newWidth < 1 || newHeight < 1)
+  {
+    QMessageBox::information(this, tr("Seam Carving GUI"),
+                             tr("Invalid dimensions."));
+    return;
+  }
   if(width == newWidth && height == newHeight)
     return;
   Image tmp = createImage(width,height);
@@ -244,6 +304,10 @@ void MainWindow::scResize(int newWidth, int newHeight)
       width -= howMuch;
     }
     data = imageData(tmp); //In case it was reallocated
+    if(!heightAdjustment)
+      destroyMask(msk);
+    else
+      mskData = maskData(msk);
   }
   if(heightAdjustment)
   {
@@ -273,7 +337,7 @@ void MainWindow::scResize(int newWidth, int newHeight)
       howMuch = newHeight - height;
       for(int i=0; i<howMuch; i++)
       {
-        htmp = makeWider(htmp,msk);
+        htmp = makeWider(htmp,hmsk);
         p.setValue(p.value()+1);
         qApp->processEvents();
         if(p.wasCanceled())
@@ -332,7 +396,6 @@ void MainWindow::scResize(int newWidth, int newHeight)
     }
   }  
   destroyImage(tmp);
-  destroyMask(msk);
   _img = newImg;
   _imgItem->setPixmap(QPixmap::fromImage(_img));
   clearMask();
@@ -348,6 +411,7 @@ void MainWindow::clearMask()
 
 void MainWindow::paintMask(QPointF oldPos, QPointF newPos)
 {
+  //qDebug("paintMaks %f %f %f %f", oldPos.x(), oldPos.y(), newPos.x(), newPos.y());
   QPainter painter(&_maskPix);
   QColor penColor = (_resizeWidget.retainRadio->isChecked() ? Qt::green : Qt::red);
   painter.setPen(QPen( QBrush(penColor), _resizeWidget.brushSizeSlider->value()) );
@@ -419,7 +483,6 @@ void MainWindow::createActions()
 
   _pasteAct = new QAction(tr("&Paste"), this);
   _pasteAct->setShortcut(tr("Ctrl+V"));
-  _pasteAct->setEnabled(false);
   connect(_pasteAct, SIGNAL(triggered()), this, SLOT(paste()));
     
   _zoomInAct = new QAction(tr("Zoom &In (25%)"), this);

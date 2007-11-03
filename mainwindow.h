@@ -50,6 +50,12 @@ private slots:
   void about();
 
 private:
+  void dragEnterEvent(QDragEnterEvent *event);
+  void dropEvent(QDropEvent *event);
+  bool eventFilter(QObject *obj, QEvent *event);
+  
+  void openFile(QString fileName);
+  void openImage(QImage image);
   void createActions();
   void createMenus();
   void updateActions();

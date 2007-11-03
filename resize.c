@@ -86,6 +86,32 @@ void chopMask(Mask m, int *path)
   m->width--;
 }
 
+void expandMask(Mask m, int *path)
+{
+  int oldWidth = m->width;
+  int oldHeight = m->height;
+  int newWidth = oldWidth + 1;
+
+  signed char *expanded = (signed char*)malloc(newWidth * oldHeight);
+	
+  for (int y = 0; y < oldHeight; y++) {
+    for (int x = 0; x < oldWidth; x++) {
+      int newX = x;
+      if (x >= path[y]) {
+        newX++;
+      }
+			
+      if (x == path[y]) {
+        expanded[y * newWidth + newX-1] = m->data[y * oldWidth + x];
+      }
+      expanded[y * newWidth + newX] = m->data[y * oldWidth + x];
+    }
+  }
+  free(m->data);
+  m->data = expanded;
+  m->width++;
+}
+
 void maskSetValue(Mask msk, int x, int y, int value){
   msk->data[y * msk->width + x] = value;
 }
@@ -120,7 +146,7 @@ Image makeNarrower(Image img, Mask weightMask) {
 	destroyImage(weightSpace);
 
 	Image chopped = chopImage(img, path);
-   chopMask(weightMask, path);
+        chopMask(weightMask, path);
    
 #ifdef DEBUG
    saveMask(weightMask);
@@ -143,12 +169,13 @@ Image makeWider(Image img, Mask weightMask) {
 	destroyImage(weightSpace);
 
 	Image expanded = expandImage(img, path);
+        expandMask(weightMask, path);
 #ifdef DEBUG
 	saveImage(expanded, "expanded.bmp");
 #endif
 	
 	free(path);
-	
+	destroyImage(img);
 	return expanded;
 }
 
@@ -288,7 +315,7 @@ static int *findPath(Image weights, Mask weightMask) {
 		double nextCost = cost[y][at];
 	
 		for (int lookX = at - 1; lookX <= at + 1; lookX++) {			
-			if (lookX >= 0 && lookX < width) {
+			if (lookX > 0 && lookX < width) {
 				if (cost[y][lookX] < nextCost) {
 					nextCost = cost[y][lookX];
 					next = lookX;
@@ -349,7 +376,9 @@ static Image chopImage(Image img, int *path) {
 			if (x >= path[y]) {
 				newX--;
 			}
-			
+                        // We can't blend when on an edge, so we continue
+                        // or we don't let paths go on edges
+			if(newX < 0) continue; 
 			if (x == path[y]) {
 				// Blend the two pixels together
 				Rgb left = imageGetPixelRgb(img, x, y);
@@ -408,7 +437,7 @@ static Image expandImage(Image img, int *path) {
 				imageSetPixelRgb(expanded, newX, y, blend);				
 			}
 			else {
-				imageSetPixelRgb(expanded, newX, y, imageGetPixelRgb(img, x, y));				
+				imageSetPixelRgb(expanded, newX, y, imageGetPixelRgb(img, x, y));
 			}
 		}
 	}

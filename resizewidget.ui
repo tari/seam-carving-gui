@@ -155,6 +155,9 @@
      <property name="text" >
       <string>&amp;Resize</string>
      </property>
+     <property name="default" >
+      <bool>true</bool>
+     </property>
     </widget>
    </item>
    <item row="2" column="2" >
@@ -180,10 +183,47 @@
   </layout>
  </widget>
  <tabstops>
+  <tabstop>retainRadio</tabstop>
+  <tabstop>removeRadio</tabstop>
+  <tabstop>brushSizeSlider</tabstop>
   <tabstop>widthLineEdit</tabstop>
   <tabstop>heightLineEdit</tabstop>
   <tabstop>resizeButton</tabstop>
+  <tabstop>clearButton</tabstop>
  </tabstops>
  <resources/>
- <connections/>
+ <connections>
+  <connection>
+   <sender>widthLineEdit</sender>
+   <signal>returnPressed()</signal>
+   <receiver>resizeButton</receiver>
+   <slot>click()</slot>
+   <hints>
+    <hint type="sourcelabel" >
+     <x>108</x>
+     <y>173</y>
+    </hint>
+    <hint type="destinationlabel" >
+     <x>105</x>
+     <y>245</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>heightLineEdit</sender>
+   <signal>returnPressed()</signal>
+   <receiver>resizeButton</receiver>
+   <slot>click()</slot>
+   <hints>
+    <hint type="sourcelabel" >
+     <x>134</x>
+     <y>203</y>
+    </hint>
+    <hint type="destinationlabel" >
+     <x>128</x>
+     <y>240</y>
+    </hint>
+   </hints>
+  </connection>
+ </connections>
 </ui>

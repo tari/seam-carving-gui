@@ -5,7 +5,6 @@
 #ifdef STATIC_PLUGINS
 #include <QtPlugin>
 Q_IMPORT_PLUGIN(qjpeg)
-Q_IMPORT_PLUGIN(qgif)
 #endif
 
 int main(int argc, char *argv[])

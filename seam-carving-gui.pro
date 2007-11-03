@@ -9,8 +9,12 @@ INCLUDEPATH += . image
 QMAKE_CC = g++
 TARGET = SeamCarvingGui
 RC_FILE = seam-carving-gui.rc
-#QTPLUGIN=qjpeg qgif
 
+win32{
+  #In windows, we build a static binary, so we declare the jpeg plugin here
+  QTPLUGIN=qjpeg
+  DEFINES += STATIC_PLUGINS
+}
 
 # Input
 HEADERS += mainwindow.h \
