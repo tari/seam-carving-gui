@@ -17,5 +17,13 @@
 
 #include "image/Image.h"
 
-Image makeNarrower(Image img);
-Image makeWider(Image img);
+//Mask, a more efficient data structure things requiring one value for each pixel
+typedef struct mask* Mask;
+Mask createMask(int width, int height);
+void destroyMask(Mask msk);
+signed char* maskData(Mask msk);
+void maskSetValue(Mask msk, int x, int y, int value);
+int maskGetValue(Mask msk, int x, int y);
+
+Image makeNarrower(Image img, Mask weightMask);
+Image makeWider(Image img, Mask weightMask);

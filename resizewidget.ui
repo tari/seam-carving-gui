@@ -5,14 +5,14 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>173</width>
-    <height>172</height>
+    <width>224</width>
+    <height>292</height>
    </rect>
   </property>
   <property name="sizePolicy" >
    <sizepolicy>
-    <hsizetype>4</hsizetype>
-    <vsizetype>5</vsizetype>
+    <hsizetype>0</hsizetype>
+    <vsizetype>0</vsizetype>
     <horstretch>0</horstretch>
     <verstretch>0</verstretch>
    </sizepolicy>
@@ -27,20 +27,68 @@
    <property name="spacing" >
     <number>6</number>
    </property>
-   <item row="2" column="0" >
-    <spacer>
-     <property name="orientation" >
-      <enum>Qt::Vertical</enum>
+   <item row="0" column="0" colspan="3" >
+    <widget class="QGroupBox" name="groupBox_2" >
+     <property name="title" >
+      <string>Retain/Remove</string>
      </property>
-     <property name="sizeHint" >
-      <size>
-       <width>20</width>
-       <height>0</height>
-      </size>
-     </property>
-    </spacer>
+     <layout class="QGridLayout" >
+      <property name="margin" >
+       <number>9</number>
+      </property>
+      <property name="spacing" >
+       <number>6</number>
+      </property>
+      <item row="0" column="0" colspan="2" >
+       <widget class="QRadioButton" name="retainRadio" >
+        <property name="text" >
+         <string>Mark area for retaining</string>
+        </property>
+        <property name="checked" >
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0" colspan="2" >
+       <widget class="QRadioButton" name="removeRadio" >
+        <property name="text" >
+         <string>Mark area for removal</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0" >
+       <widget class="QLabel" name="label" >
+        <property name="text" >
+         <string>Brush Size:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1" >
+       <widget class="QSlider" name="brushSizeSlider" >
+        <property name="minimum" >
+         <number>5</number>
+        </property>
+        <property name="maximum" >
+         <number>100</number>
+        </property>
+        <property name="singleStep" >
+         <number>5</number>
+        </property>
+        <property name="pageStep" >
+         <number>20</number>
+        </property>
+        <property name="value" >
+         <number>15</number>
+        </property>
+        <property name="orientation" >
+         <enum>Qt::Horizontal</enum>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
    </item>
-   <item row="0" column="0" colspan="2" >
+   <item row="1" column="0" colspan="3" >
     <widget class="QGroupBox" name="groupBox" >
      <property name="title" >
       <string>Resize Dimensions</string>
@@ -89,22 +137,42 @@
      </layout>
     </widget>
    </item>
-   <item row="1" column="1" >
-    <widget class="QPushButton" name="resizeButton" >
-     <property name="text" >
-      <string>&amp;Resize</string>
-     </property>
-    </widget>
-   </item>
-   <item row="1" column="0" >
+   <item row="2" column="0" >
     <spacer>
      <property name="orientation" >
       <enum>Qt::Horizontal</enum>
      </property>
      <property name="sizeHint" >
       <size>
-       <width>40</width>
+       <width>31</width>
        <height>20</height>
+      </size>
+     </property>
+    </spacer>
+   </item>
+   <item row="2" column="1" >
+    <widget class="QPushButton" name="resizeButton" >
+     <property name="text" >
+      <string>&amp;Resize</string>
+     </property>
+    </widget>
+   </item>
+   <item row="2" column="2" >
+    <widget class="QPushButton" name="clearButton" >
+     <property name="text" >
+      <string>&amp;Clear</string>
+     </property>
+    </widget>
+   </item>
+   <item row="3" column="1" >
+    <spacer>
+     <property name="orientation" >
+      <enum>Qt::Vertical</enum>
+     </property>
+     <property name="sizeHint" >
+      <size>
+       <width>20</width>
+       <height>0</height>
       </size>
      </property>
     </spacer>

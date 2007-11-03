@@ -5,6 +5,7 @@
 
 #include <QMainWindow>
 #include <QPrinter>
+#include <QGraphicsScene>
 
 class QAction;
 class QLabel;
@@ -12,6 +13,19 @@ class QMenu;
 class QScrollArea;
 class QScrollBar;
 class QDockWidget;
+class QGraphicsView;
+class QGraphicsPixmapItem;
+
+class ImageScene : public QGraphicsScene
+{
+  Q_OBJECT;
+public:
+  ImageScene(QObject *parent=0) : QGraphicsScene(parent){}
+  void mouseMoveEvent(QGraphicsSceneMouseEvent * e );
+  void mousePressEvent(QGraphicsSceneMouseEvent * e );
+signals:
+  void mouseMoved(QPointF oldPos, QPointF newPos);
+};
 
 class MainWindow : public QMainWindow
 {
@@ -28,10 +42,11 @@ private slots:
   void print();
   void resizeButtonClicked();
   void scResize(int newWidth, int newHeight);
+  void clearMask();
+  void paintMask(QPointF oldPos, QPointF newPos);
   void zoomIn();
   void zoomOut();
   void normalSize();
-  void fitToWindow();
   void about();
 
 private:
@@ -42,11 +57,14 @@ private:
   void adjustScrollBar(QScrollBar *scrollBar, double factor);
 
   QString _filter;
-  QLabel *_imageLabel;
   QImage _img;
+  QPixmap _maskPix;
   QDockWidget *_resizeDock;
   Ui::ResizeWidget _resizeWidget;
-  QScrollArea *_scrollArea;
+  ImageScene *_scene;
+  QGraphicsView *_view;
+  QGraphicsPixmapItem *_imgItem;
+  QGraphicsPixmapItem *_maskItem;
   double _scaleFactor;
 
   QPrinter _printer;
@@ -60,7 +78,6 @@ private:
   QAction *_zoomInAct;
   QAction *_zoomOutAct;
   QAction *_normalSizeAct;
-  QAction *_fitToWindowAct;
   QAction *_aboutAct;
 
   QMenu *_fileMenu;

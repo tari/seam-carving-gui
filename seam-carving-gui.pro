@@ -9,6 +9,8 @@ INCLUDEPATH += . image
 QMAKE_CC = g++
 TARGET = SeamCarvingGui
 RC_FILE = seam-carving-gui.rc
+#QTPLUGIN=qjpeg qgif
+
 
 # Input
 HEADERS += mainwindow.h \

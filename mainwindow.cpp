@@ -18,6 +18,8 @@
 #include <QtGui>
 #include <QList>
 #include <QByteArray>
+#include <QGraphicsScene>
+#include <QGraphicsView>
 
 #include "mainwindow.h"
 #include "resize.h"
@@ -32,6 +34,18 @@ public:
   QSize sizeHint() const{ return QSize(50,50); }
 };
 
+/// To handle mouse events
+void ImageScene::mouseMoveEvent(QGraphicsSceneMouseEvent * e )
+{
+  if(e->buttons() & Qt::LeftButton)
+    emit(mouseMoved(e->lastScenePos(), e->scenePos()));
+}
+void ImageScene::mousePressEvent(QGraphicsSceneMouseEvent * e )
+{
+  if(e->buttons() & Qt::LeftButton)
+    emit(mouseMoved(e->lastScenePos(), e->scenePos()));
+}
+
 MainWindow::MainWindow()
 {
   //Create an image filter
@@ -45,15 +59,11 @@ MainWindow::MainWindow()
   }
   _filter += ")";
   
-  _imageLabel = new QLabel;
-  _imageLabel->setBackgroundRole(QPalette::Base);
-  _imageLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
-  _imageLabel->setScaledContents(true);
-
-  _scrollArea = new QScrollArea;
-  _scrollArea->setBackgroundRole(QPalette::Dark);
-  _scrollArea->setWidget(_imageLabel);
-  setCentralWidget(_scrollArea);
+  _scene = new ImageScene(this);
+  _scene->setBackgroundBrush(palette().dark());
+  _imgItem = _scene->addPixmap(QPixmap());
+  _view = new QGraphicsView(_scene);
+  setCentralWidget(_view);
 
   createActions();
   createMenus();
@@ -69,6 +79,7 @@ MainWindow::MainWindow()
   _resizeWidget.widthLineEdit->setValidator(validtor);
   _resizeWidget.heightLineEdit->setValidator(validtor);
   connect(_resizeWidget.resizeButton, SIGNAL(clicked()), this, SLOT(resizeButtonClicked()));
+  connect(_resizeWidget.clearButton, SIGNAL(clicked()), this, SLOT(clearMask()));  
   _resizeDock->setWidget(holderWidget);
   holderWidget->resize(50,50);
   addDockWidget(Qt::RightDockWidgetArea, _resizeDock);
@@ -89,11 +100,21 @@ void MainWindow::open()
       return;
     }
     _img = image;
-    _imageLabel->setPixmap(QPixmap::fromImage(image));
+    delete _scene;
+    _scene = new ImageScene(this);
+    connect(_scene, SIGNAL(mouseMoved(QPointF, QPointF)), this, SLOT(paintMask(QPointF, QPointF)));
+    _scene->setBackgroundBrush(palette().dark());
+    _imgItem = _scene->addPixmap(QPixmap::fromImage(_img));
+
+    _maskPix = QPixmap(_img.width(), _img.height());
+    _maskPix.fill(Qt::transparent);
+    _maskItem = _scene->addPixmap(_maskPix);
+
+    _view->setScene(_scene);
+    
     _scaleFactor = 1.0;
 
     _printAct->setEnabled(true);
-    _fitToWindowAct->setEnabled(true);
     _saveAct->setEnabled(true);
     _resizeDock->setEnabled(true);
     _copyAct->setEnabled(true);
@@ -101,9 +122,6 @@ void MainWindow::open()
     _resizeWidget.heightLineEdit->setText(QString::number(_img.height()));
     _resizeWidget.widthLineEdit->setText(QString::number(_img.width()));
     updateActions();
-
-    if (!_fitToWindowAct->isChecked())
-      _imageLabel->adjustSize();
   }
 }
 
@@ -128,16 +146,17 @@ void MainWindow::paste()
 
 void MainWindow::print()
 {
-  Q_ASSERT(_imageLabel->pixmap());
+  if(_img.isNull())
+    return;
   QPrintDialog dialog(&_printer, this);
   if (dialog.exec()) {
     QPainter painter(&_printer);
     QRect rect = painter.viewport();
-    QSize size = _imageLabel->pixmap()->size();
+    QSize size = _img.size();
     size.scale(rect.size(), Qt::KeepAspectRatio);
     painter.setViewport(rect.x(), rect.y(), size.width(), size.height());
-    painter.setWindow(_imageLabel->pixmap()->rect());
-    painter.drawPixmap(0, 0, *_imageLabel->pixmap());
+    painter.setWindow(_img.rect());
+    painter.drawImage(0, 0, _img);
   }
 }
 
@@ -157,6 +176,10 @@ void MainWindow::scResize(int newWidth, int newHeight)
     return;
   Image tmp = createImage(width,height);
   unsigned char *data = imageData(tmp);
+  Mask msk = createMask(width, height);
+  signed char *mskData = maskData(msk);
+
+  QImage mskImg = _maskPix.toImage();
 
   //Figure out how much we are changing and set up a progress
   int widthAdjustment = (width < newWidth ? newWidth - width : width - newWidth);
@@ -172,6 +195,13 @@ void MainWindow::scResize(int newWidth, int newHeight)
       data[(y * width + x) * 3] = qBlue(c);
       data[(y * width + x) * 3 + 1] = qGreen(c);
       data[(y * width + x) * 3 + 2] = qRed(c);
+      QRgb m = mskImg.pixel(x,y);
+      if(qGreen(m) == 255)
+        mskData[y * width + x] = 1;
+      else if(qRed(m) == 255)
+        mskData[y * width + x] = -1;
+      else
+        mskData[y * width + x] = 0;
     }
   }
 
@@ -184,12 +214,13 @@ void MainWindow::scResize(int newWidth, int newHeight)
       howMuch = newWidth - width; 
       for(int i=0; i<howMuch; i++)
       {
-        tmp = makeWider(tmp);
+        tmp = makeWider(tmp,msk);
         p.setValue(p.value()+1);
         qApp->processEvents();
         if(p.wasCanceled())
         {
           destroyImage(tmp);
+          destroyMask(msk);
           return;
         }
       }
@@ -200,12 +231,13 @@ void MainWindow::scResize(int newWidth, int newHeight)
       howMuch = width - newWidth;
       for(int i=0; i<howMuch; i++)
       {
-        tmp = makeNarrower(tmp);
+        tmp = makeNarrower(tmp,msk);
         p.setValue(p.value()+1);
         qApp->processEvents();
         if(p.wasCanceled())
         {
           destroyImage(tmp);
+          destroyMask(msk);
           return;
         }
       }
@@ -218,14 +250,19 @@ void MainWindow::scResize(int newWidth, int newHeight)
     //Flipt the image
     Image htmp = createImage(height, width);//backward dimentions
     unsigned char *hdata = imageData(htmp);
+    Mask  hmsk = createMask(height, width);
+    signed char *hmskData = maskData(hmsk);
+    
     for (int y = height - 1; y >= 0; y--) {
       for (int x = 0; x < width; x++) {
         hdata[(x * height + y) * 3] = data[(y * width + x) * 3];
         hdata[(x * height + y) * 3 + 1] = data[(y * width + x) * 3 + 1];
         hdata[(x * height + y) * 3 + 2] = data[(y * width + x) * 3 + 2];
+        hmskData[x * height + y] = mskData[y * width + x];
       }
     }
     destroyImage(tmp);
+    destroyMask(msk);
 #ifdef DEBUG
     saveImage(htmp, "beforeout.bmp");
 #endif
@@ -236,12 +273,13 @@ void MainWindow::scResize(int newWidth, int newHeight)
       howMuch = newHeight - height;
       for(int i=0; i<howMuch; i++)
       {
-        htmp = makeWider(htmp);
+        htmp = makeWider(htmp,msk);
         p.setValue(p.value()+1);
         qApp->processEvents();
         if(p.wasCanceled())
         {
           destroyImage(htmp);
+          destroyMask(hmsk);          
           return;
         }
       }
@@ -252,12 +290,13 @@ void MainWindow::scResize(int newWidth, int newHeight)
       howMuch = height - newHeight;
       for(int i=0; i<howMuch; i++)
       {
-        htmp = makeNarrower(htmp);
+        htmp = makeNarrower(htmp,hmsk);
         p.setValue(p.value()+1);
         qApp->processEvents();
         if(p.wasCanceled())
         {
           destroyImage(htmp);
+          destroyMask(hmsk);                    
           return;
         }
       }
@@ -278,6 +317,7 @@ void MainWindow::scResize(int newWidth, int newHeight)
       }
     }
     destroyImage(htmp);
+    destroyMask(hmsk);          
   }
 #ifdef DEBUG
   saveImage(tmp, "finalout.bmp");
@@ -292,12 +332,28 @@ void MainWindow::scResize(int newWidth, int newHeight)
     }
   }  
   destroyImage(tmp);
+  destroyMask(msk);
   _img = newImg;
-  _imageLabel->setPixmap(QPixmap::fromImage(_img));
-  _imageLabel->adjustSize();
+  _imgItem->setPixmap(QPixmap::fromImage(_img));
+  clearMask();
   _scaleFactor = 1.0;
 }
 
+void MainWindow::clearMask()
+{
+  _maskPix = QPixmap(_img.width(), _img.height());
+  _maskPix.fill(Qt::transparent);
+  _maskItem->setPixmap(_maskPix);
+}
+
+void MainWindow::paintMask(QPointF oldPos, QPointF newPos)
+{
+  QPainter painter(&_maskPix);
+  QColor penColor = (_resizeWidget.retainRadio->isChecked() ? Qt::green : Qt::red);
+  painter.setPen(QPen( QBrush(penColor), _resizeWidget.brushSizeSlider->value()) );
+  painter.drawLine(oldPos, newPos);
+  _maskItem->setPixmap(_maskPix);
+}
 void MainWindow::zoomIn()
 {
   scaleImage(1.25);
@@ -310,20 +366,10 @@ void MainWindow::zoomOut()
 
 void MainWindow::normalSize()
 {
-  _imageLabel->adjustSize();
   _scaleFactor = 1.0;
+  //_view->resetTransform();
+  _view->resetMatrix();
 }
-
-void MainWindow::fitToWindow()
-{
-  bool fitToWindow = _fitToWindowAct->isChecked();
-  _scrollArea->setWidgetResizable(fitToWindow);
-  if (!fitToWindow) {
-    normalSize();
-  }
-  updateActions();
-}
-
 
 void MainWindow::about()
 {
@@ -342,7 +388,7 @@ void MainWindow::about()
                        "wishing I could be doing seam carving on some images of my own.</p>"
                        "<p>Enjoy, if you have any questions or suffer from the undeniable urge to "
                        "lavishly complement this quick hack of a GUI, you can reach me at "
-                       "<a href=\"mailto:gabe+seamcarving@gabeiscoding.com\">gabe+seamcarving@gabeiscoding.com</a></p>"
+                       "<a href=\"mailto:gaberudy+seamcarving@gmail.com\">gaberudy+seamcarving@gmail.com</a></p>"
                         ));
 }
 
@@ -395,12 +441,6 @@ void MainWindow::createActions()
   _normalSizeAct->setEnabled(false);
   connect(_normalSizeAct, SIGNAL(triggered()), this, SLOT(normalSize()));
 
-  _fitToWindowAct = new QAction(tr("&Fit to Window"), this);
-  _fitToWindowAct->setEnabled(false);
-  _fitToWindowAct->setCheckable(true);
-  _fitToWindowAct->setShortcut(tr("Ctrl+F"));
-  connect(_fitToWindowAct, SIGNAL(triggered()), this, SLOT(fitToWindow()));
-
   _aboutAct = new QAction(tr("&About"), this);
   connect(_aboutAct, SIGNAL(triggered()), this, SLOT(about()));
 }
@@ -423,7 +463,6 @@ void MainWindow::createMenus()
   _viewMenu->addAction(_zoomOutAct);
   _viewMenu->addAction(_normalSizeAct);
   _viewMenu->addSeparator();
-  _viewMenu->addAction(_fitToWindowAct);
 
   _helpMenu = new QMenu(tr("&Help"), this);
   _helpMenu->addAction(_aboutAct);
@@ -436,20 +475,18 @@ void MainWindow::createMenus()
 
 void MainWindow::updateActions()
 {
-  _zoomInAct->setEnabled(!_fitToWindowAct->isChecked());
-  _zoomOutAct->setEnabled(!_fitToWindowAct->isChecked());
-  _normalSizeAct->setEnabled(!_fitToWindowAct->isChecked());
+  _zoomInAct->setEnabled(true);
+  _zoomOutAct->setEnabled(true);
+  _normalSizeAct->setEnabled(true);
 }
 
 void MainWindow::scaleImage(double factor)
 {
-  if(!_imageLabel->pixmap())
-    return;
-  _scaleFactor *= factor;
-  _imageLabel->resize(_scaleFactor * _imageLabel->pixmap()->size());
+  adjustScrollBar(_view->horizontalScrollBar(), factor);
+  adjustScrollBar(_view->verticalScrollBar(), factor);
 
-  adjustScrollBar(_scrollArea->horizontalScrollBar(), factor);
-  adjustScrollBar(_scrollArea->verticalScrollBar(), factor);
+  _scaleFactor *= factor;  
+  _view->scale(factor, factor);
 
   _zoomInAct->setEnabled(_scaleFactor < 3.0);
   _zoomOutAct->setEnabled(_scaleFactor > 0.333);

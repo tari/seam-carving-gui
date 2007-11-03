@@ -14,77 +14,132 @@
 //
 // Andy Owen: andy-<YOUR NAME HERE>@ultra-premium.com
 // http://ultra-premium.com/b
+//
+// Gabe Rudy made modifications, added the masking method for area dodge/emphasize.
+// Gabe Rudy: gabe+seamcarving@gmail.com
+// http://gabeiscoding.com
 
 #include <stdlib.h>
 #include <stdio.h>
 #include <assert.h>
 #include <math.h>
+#include <float.h>
 #include "resize.h"
 
 static Image edgeFilter(Image img);
-static int *findPath(Image weights);
+static int *findPath(Image weights, Mask weightMask);
 static double getWeight(Image weights, int x, int y);
-static double emphasizeZero(double v);
+static double weightToCost(int weight);
 
 static Image chopImage(Image img, int *path);
 static Image expandImage(Image img, int *path);
 
-//#define DEBUG
-/*
-int main(int argc, char *argv[]) {
-	Image img = loadImage(argv[1]);
-	
-	int chopPixels = imageGetWidth(img) * 0.5;
-	int addPixels = chopPixels;
-	
-	for (int i = 0; i < chopPixels; i++) {
-		Image narrower = makeNarrower(img);
-		destroyImage(img);
-		img = narrower;
-	}
+struct mask {
+  signed char* data; //width * height size
+	int width;
+	int height;
+};
 
-	for (int i = 0; i < addPixels; i++) {
-		Image wider = makeWider(img);
-		destroyImage(img);
-		img = wider;
-	}
-
-	
-	saveImage(img, "resized.bmp");
-	destroyImage(img);
-	
-	return 0;
+Mask createMask(int width, int height) {
+	Mask temp;
+	temp = (Mask)malloc(sizeof temp[0]);
+	temp->width = width;
+	temp->height = height;
+	temp->data = (signed char*)malloc(width * height);
+	return temp;
 }
-*/
 
-Image makeNarrower(Image img) {
+void destroyMask(Mask msk){
+	free(msk->data);
+	free(msk);
+}
+
+signed char* maskData(Mask msk){
+  return msk->data;
+}
+
+//Inline chop the mask
+void chopMask(Mask m, int *path)
+{
+  int oldWidth = m->width;
+  int oldHeight = m->height;
+  int newWidth = oldWidth - 1;
+
+  signed char *chopped = (signed char*)malloc(newWidth * oldHeight);
+	
+  for (int y = 0; y < oldHeight; y++) {
+    for (int x = 0; x < oldWidth; x++) {
+      int newX = x;
+      if (x >= path[y]) {
+        newX--;
+      }
+			
+      if (x == path[y]) {
+      }
+      else {
+        chopped[y * newWidth + newX] = m->data[y * oldWidth + x];
+      }
+    }
+  }
+  free(m->data);
+  m->data = chopped;
+  m->width--;
+}
+
+void maskSetValue(Mask msk, int x, int y, int value){
+  msk->data[y * msk->width + x] = value;
+}
+
+int maskGetValue(Mask msk, int x, int y){
+  return msk->data[y * msk->width + x];
+}
+
+void saveMask(Mask msk)
+{
+  Image tmpImg = createImage(msk->width, msk->height);
+  for (int y = 0; y < msk->height; y++) {
+    for (int x = 0; x < msk->width; x++) {
+      imageSetPixel(tmpImg, x, y, (maskGetValue(msk,x,y) == -1 ? 255 : 0),
+                    (maskGetValue(msk,x,y) == 1 ? 255 : 0), 0);
+    }
+  }
+  saveImage(tmpImg, "mask.bmp");
+  destroyImage(tmpImg);
+}
+
+//#define DEBUG
+
+Image makeNarrower(Image img, Mask weightMask) {
 	Image weightSpace = edgeFilter(img);
 	
 #ifdef DEBUG	
 	saveImage(weightSpace, "edges.bmp");
 #endif
 	
-	int *path = findPath(weightSpace);
+	int *path = findPath(weightSpace, weightMask);
 	destroyImage(weightSpace);
 
 	Image chopped = chopImage(img, path);
+   chopMask(weightMask, path);
+   
 #ifdef DEBUG
+   saveMask(weightMask);
 	saveImage(chopped, "chopped.bmp");
 #endif
 	
 	free(path);
-	
+	destroyImage(img);
 	return chopped;
 }
 
-Image makeWider(Image img) {
+Image makeWider(Image img, Mask weightMask) {
 	Image weightSpace = edgeFilter(img);
 	
 #ifdef DEBUG	
 	saveImage(weightSpace, "edges.bmp");
 #endif
 	
-	int *path = findPath(weightSpace);
+	int *path = findPath(weightSpace, weightMask);
 	destroyImage(weightSpace);
 
 	Image expanded = expandImage(img, path);
@@ -138,7 +193,7 @@ static Image edgeFilter(Image img) {
 					}
 				}
 			}
-			int total = abs(totalX) + abs(totalY);
+			int total = abs(int(totalX)) + abs(int(totalY));
 			if (total < 0) {
 				total = 0;
 			}
@@ -157,7 +212,7 @@ static Image edgeFilter(Image img) {
 	return result;
 }
 
-static int *findPath(Image weights) {
+static int *findPath(Image weights, Mask weightMask) {
 	int width = imageGetWidth(weights);
 	int height = imageGetHeight(weights);
 	
@@ -169,7 +224,7 @@ static int *findPath(Image weights) {
 	for (int y = 0; y < height; y++) {
 		cost[y] = (double*)malloc(width * (sizeof cost[0][0]));
 		for (int x = 0; x < width; x++) {
-			cost[y][x] = INFINITY;
+        cost[y][x] = DBL_MAX; //Andy used INFINITY but that causes compiler warnings
 		}
 	}
 	
@@ -180,11 +235,11 @@ static int *findPath(Image weights) {
 	
 	// And now calculate each row after that
 	double maxCost = 0.0;
-	for (int y = 1; y < height; y++) {
+	for(int y = 1; y < height; y++) {
 		for (int x = 0; x < width; x++) {
 			int bestX = x;
 			double bestCost = cost[y - 1][x];
-			for (int tryX = x - 1; tryX <= x + 1; tryX++) {
+         for (int tryX = x-1; tryX <= x + 1; tryX++ ) {                        
 				if (tryX >= 0 && tryX < width) {
 					if (cost[y - 1][tryX] < bestCost) {
 						bestX = tryX;
@@ -192,7 +247,7 @@ static int *findPath(Image weights) {
 					}
 				}
 			}
-			cost[y][x] = cost[y - 1][bestX] + emphasizeZero(getWeight(weights, x, y));
+         cost[y][x] = cost[y - 1][bestX] + getWeight(weights, x, y) + weightToCost(maskGetValue(weightMask, x, y));
 			
 			if (cost[y][x] > maxCost) {
 				maxCost = cost[y][x];
@@ -216,7 +271,7 @@ static int *findPath(Image weights) {
 	int *path = (int*)malloc(height * (sizeof path[0]));
 
 	// Find the minimum cost on the bottom row:
-	double minCost = INFINITY;
+	double minCost = DBL_MAX;
 	int at = -1;
 	for (int x = 0; x < width; x++) {
 		if (cost[height - 1][x] < minCost) {
@@ -233,7 +288,7 @@ static int *findPath(Image weights) {
 		double nextCost = cost[y][at];
 	
 		for (int lookX = at - 1; lookX <= at + 1; lookX++) {			
-			if (lookX >= 0 && lookX <= width) {
+			if (lookX >= 0 && lookX < width) {
 				if (cost[y][lookX] < nextCost) {
 					nextCost = cost[y][lookX];
 					next = lookX;
@@ -264,12 +319,18 @@ static int *findPath(Image weights) {
 	return path;
 }
 
-static double emphasizeZero(double v) {
-	// This is a hack
-	if (v <= 0.0) {
-		return -500;
-	}
-	return v;
+//Not sure if 500 is a good value, that's just what Andy was using
+#define COST_MAGNITUDE 500
+static double weightToCost(int weight) {
+  switch(weight)
+  {
+    case 1:
+      return COST_MAGNITUDE;
+    case -1:
+      return -COST_MAGNITUDE;
+    default:
+      return 0;
+  }
 }
 
 static double getWeight(Image weights, int x, int y) {

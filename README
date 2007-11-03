@@ -2,20 +2,24 @@ The Seam Carving GUI is a simple GUI front end to the implementation of
 the Seam Carving algorithm by Andy Owen (http://ultra-premium.com/b).
 
 I ran into Andy's comment to the Slashdot article about Content-Aware
-Image Resizing
-(http://science.slashdot.org/article.pl?sid=07/08/25/1835256) and decided
-his late night hack was cool enough to deserve a easy to use
-interface. Besides, after a few days of seeing the impressive demonstration
-video (http://www.youtube.com/watch?v=vIFCV2spKtg) about the SIGGRAPH
-paper on seam carving (http://www.faculty.idc.ac.il/arik) I found myself
-wishing I could be doing seam carving on some images of my own.
+Image Resizing[1] and decided his late night hack was cool enough to
+deserve a easy to use interface. Besides, after a few days of seeing the
+impressive demonstration video[2] about the SIGGRAPH paper on seam
+carving[3] I found myself wishing I could be doing seam carving on some
+images of my own.
 
 Enjoy, if you have any questions or suffer from the undeniable urge to
 lavishly complement this quick hack of a GUI, you can reach me at
-gabe+seamcarving@gabeiscoding.com
+gaberudy+seamcarving@gmail.com
 
 TODO:
 - Copy and Paste
 - Drag and Drop
 - Do any sort or optimization of Andy's image stuff
 - Read the paper and make it really work!
+
+For more information and updates goto: http://gabeiscoding.com
+
+[1] http://science.slashdot.org/article.pl?sid=07/08/25/1835256
+[2] http://www.youtube.com/watch?v=vIFCV2spKtg
+[3] http://www.faculty.idc.ac.il/arik
