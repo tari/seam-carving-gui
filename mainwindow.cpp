@@ -27,7 +27,7 @@
 #include "cair/CAIR.h"
 #include <vector>
 
-#define ADD_WEIGHT_PARAM 5
+#define ADD_WEIGHT_PARAM 75
 #define WEIGHT_SCALE 5
 
 QProgressDialog *gProg;
