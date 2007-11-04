@@ -22,15 +22,13 @@
 
 using namespace std;
 
-//Function pointer for progress
 typedef int (*ProgressPtr)(int);
 
 //The Great CAIR Frontend. This baby will resize Source using Weights into the dimensions supplied by goal_x and goal_y into Dest.
 //It will use quality as a factor to determine how often the edge is generated between removals.
-//Source can be of any size. goal_x and goal_y must be less than the dimensions of the Source image for anything to happen.
 //Weights allows for an area to be biased for remvoal/protection. A large positive value will protect a portion of the image,
 //and a large negative value will remove it. Do not exceed the limits of int's, as this will cause an overflow. I would suggest
-//a safe range of -2,000,000 to 2,000,000.
+//a safe range of -2,000,000 to 2,000,000 (this is a maximum guideline, much smaller weights will work just as well for most images).
 //Weights must be the same size as Source. It will be scaled  with Source as paths are removed or added. Dest is the output,
 //and as such has no constraints (its contents will be destroyed, just so you know). Quality should be >=0 and <=1. A >1 quality
 //will work just like 1, meaning the edge will be recalculated after every removal (and a <0 quality will also work like 1).
@@ -38,7 +36,8 @@ typedef int (*ProgressPtr)(int);
 //additonal weight is placed to the old least-energy path and the new inserted path. Having  a very large add_weight 
 //will cause the algorithm to work more like a linear algorithm. Having a very small add_weight will cause stretching. 
 //A weight of greater than 25 should prevent stretching, but may not evenly distribute paths through an area. 
-//Note: Weights does affect path adding, so a large negative weight will atract the most paths.
+//Note: Weights does affect path adding, so a large negative weight will atract the most paths. Also, if add_weight is too large,
+//it may eventually force new paths into areas marked for protection. I am unsure of an exact ratio on such things at this time.
 //The internal order is this: remove horizontal, remove vertical, add horizontal, add vertical.
 void CAIR( CML_color * Source, CML_int * Weights, int goal_x, int goal_y, double quality, int add_weight, CML_color * Dest, ProgressPtr p=0 );
 
@@ -48,8 +47,18 @@ void CAIR_Grayscale( CML_color * Source, CML_color * Dest );
 //Simple function that generates the edge-detection image of Source and stores it in Dest.
 void CAIR_Edge( CML_color * Source, CML_color * Dest );
 
-//Simple function that generates the energy map of Source placing it into Dest.
+//Simple function that generates the vertical energy map of Source placing it into Dest.
 //All values are scaled down to their relative gray value. Weights are assumed all zero.
-void CAIR_Energy( CML_color * Source, CML_color * Dest );
+void CAIR_V_Energy( CML_color * Source, CML_color * Dest );
+
+//Simple function that generates the horizontal energy map of Source placing it into Dest.
+//All values are scaled down to their relative gray value. Weights are assumed all zero.
+void CAIR_H_Energy( CML_color * Source, CML_color * Dest );
+
+//Experimental automatic object removal.
+//Any area with a negative weight will be removed. This function will automatically remove that portion and
+//return the image back to its origional dimensions. It will determine which direction to remove (either width or height)
+//based on the number of negative columns and rows. This is to minimize the amount of change needed.
+void CAIR_Removal( CML_color * Source, CML_int * Weights, double quality, int add_weight, CML_color * Dest );
 
 #endif

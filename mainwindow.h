@@ -51,6 +51,7 @@ private slots:
   void normalSize();
   void about();
   void changeView(QAction* view);
+  void updateCursor();
 
 private:
   void dragEnterEvent(QDragEnterEvent *event);
@@ -92,7 +93,8 @@ private:
   QAction *_viewImage;
   QAction *_viewGreyscale;
   QAction *_viewEdge;
-  QAction *_viewEnergy;
+  QAction *_viewVEnergy;
+  QAction *_viewHEnergy;  
   QActionGroup *_viewGroup; 
   QAction *_zoomInAct;
   QAction *_zoomOutAct;

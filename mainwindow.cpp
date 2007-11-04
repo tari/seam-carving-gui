@@ -27,6 +27,8 @@
 #include "cair/CAIR.h"
 #include <vector>
 
+#define ADD_WEIGHT_PARAM 5
+#define WEIGHT_SCALE 5
 
 QProgressDialog *gProg;
 int updateCallback(int)
@@ -50,7 +52,7 @@ static void QImagetoCML(QImage source, CML_color &dest)
       p.green = qGreen( source.pixel(i, j) );
       p.blue = qBlue( source.pixel(i, j) );
       p.alpha = qAlpha( source.pixel(i, j) );
-      dest[i][j] = p;
+      dest(i,j) = p;
     }
   }
 }
@@ -63,7 +65,7 @@ static QImage CMLtoQImage(CML_color &source)
   {
     for( int i=0; i<source.Width(); i++ )
     {
-      p = source[i][j];
+      p = source(i,j);
       newImg.setPixel(i, j, qRgba( p.red, p.green, p.blue, p.alpha ));
     }
   }
@@ -128,7 +130,8 @@ MainWindow::MainWindow()
   _resizeWidget.widthLineEdit->setValidator(validtor);
   _resizeWidget.heightLineEdit->setValidator(validtor);
   connect(_resizeWidget.resizeButton, SIGNAL(clicked()), this, SLOT(resizeButtonClicked()));
-  connect(_resizeWidget.clearButton, SIGNAL(clicked()), this, SLOT(clearMask()));  
+  connect(_resizeWidget.clearButton, SIGNAL(clicked()), this, SLOT(clearMask()));
+  connect(_resizeWidget.brushSizeSlider, SIGNAL(sliderMoved(int)), this, SLOT(updateCursor()));
   _resizeDock->setWidget(holderWidget);
   holderWidget->resize(50,50);
   addDockWidget(Qt::RightDockWidgetArea, _resizeDock);
@@ -184,10 +187,12 @@ void MainWindow::openImage(QImage image)
   _viewImage->setEnabled(true);
   _viewGreyscale->setEnabled(true);
   _viewEdge->setEnabled(true);
-  _viewEnergy->setEnabled(true);
+  _viewVEnergy->setEnabled(true);
+  _viewHEnergy->setEnabled(true);
   _resizeWidget.heightLineEdit->setText(QString::number(_img.height()));
   _resizeWidget.widthLineEdit->setText(QString::number(_img.width()));
   updateActions();
+  updateCursor();
 }
 
 void MainWindow::save()
@@ -323,17 +328,17 @@ void MainWindow::cairResize(int newWidth, int newHeight)
     for( int i=0; i<width; i++ )
     {
       QRgb m = mskImg.pixel(i,j);
-      if(qGreen(m) == 255)
-        weights[i][j] = qAlpha(m) * 10;
-      else if(qRed(m) == 255)
-        weights[i][j] = qAlpha(m) * -10;
+      if(qGreen(m) > 0)
+        weights(i,j) = qGreen(m) * WEIGHT_SCALE;
+      else if(qRed(m) > 0)
+        weights(i,j) = qRed(m) * -WEIGHT_SCALE;
       else
-        weights[i][j] = 0;
+        weights(i,j) = 0;
     }
   }
   //Call CAIR
   double quality = _resizeWidget.qualitySlider->value() / 100.0;
-  int add_weight = 75;
+  int add_weight = ADD_WEIGHT_PARAM;
   CAIR( &source, &weights, newWidth, newHeight, quality, add_weight, &dest, updateCallback );
   if(prog.wasCanceled())
     return;
@@ -341,7 +346,21 @@ void MainWindow::cairResize(int newWidth, int newHeight)
   addToUndoStack(newImg);
   _img = newImg;
   _imgItem->setPixmap(QPixmap::fromImage(_img));
-  clearMask();
+  //Set the weight mask to the now reduced size version shrunk by CAIR
+  QImage maskImg(_img.width(), _img.height(), QImage::Format_ARGB32);
+  maskImg.fill(qRgba(0,0,0,0));
+  for( int j=0; j<_img.height(); j++ )
+  {
+    for( int i=0; i<_img.width(); i++ )
+    {
+      if(weights(i,j) > 0)
+        maskImg.setPixel(i, j, qRgba( 0, weights(i,j) / WEIGHT_SCALE, 0, weights(i,j) / WEIGHT_SCALE));
+      else if(weights(i,j) < 0)
+        maskImg.setPixel(i, j, qRgba( weights(i,j) / -WEIGHT_SCALE, 0, 0, weights(i,j) / -WEIGHT_SCALE));
+    }
+  }
+  _maskPix = QPixmap::fromImage(maskImg);
+  _maskItem->setPixmap(_maskPix);
   _scaleFactor = 1.0;
 }
 
@@ -356,9 +375,16 @@ void MainWindow::paintMask(QPointF oldPos, QPointF newPos)
 {
   //qDebug("paintMaks %f %f %f %f", oldPos.x(), oldPos.y(), newPos.x(), newPos.y());
   QPainter painter(&_maskPix);
-  QColor penColor = (_resizeWidget.retainRadio->isChecked() ? Qt::green : Qt::red);
-  penColor.setAlpha( int(255 * (_resizeWidget.brushWeightSlider->value() / 180.0)) );
-  painter.setPen(QPen( QBrush(penColor), _resizeWidget.brushSizeSlider->value()) );
+  if(_resizeWidget.clearRadio->isChecked())
+  {
+    painter.setPen(QPen( QBrush(Qt::transparent), _resizeWidget.brushSizeSlider->value(), Qt::SolidLine, Qt::RoundCap) );
+    painter.setCompositionMode(QPainter::CompositionMode_Clear);
+  }else
+  {
+    QColor penColor(_resizeWidget.retainRadio->isChecked() ? Qt::green : Qt::red);
+    penColor.setAlpha( int(255 * (_resizeWidget.brushWeightSlider->value() / 180.0)) );
+    painter.setPen(QPen( QBrush(penColor), _resizeWidget.brushSizeSlider->value(), Qt::SolidLine, Qt::RoundCap) );
+  }
   painter.drawLine(oldPos, newPos);
   _maskItem->setPixmap(_maskPix);
 }
@@ -425,9 +451,22 @@ void MainWindow::changeView(QAction *view)
     CAIR_Grayscale( &source, &dest );
   if(view == _viewEdge)
     CAIR_Edge( &source, &dest );
-  if(view == _viewEnergy)
-    CAIR_Energy( &source, &dest );
+  if(view == _viewVEnergy)
+    CAIR_V_Energy( &source, &dest );
+  if(view == _viewHEnergy)
+    CAIR_H_Energy( &source, &dest );
   _imgItem->setPixmap(QPixmap::fromImage(CMLtoQImage(dest)));
+}
+
+void MainWindow::updateCursor()
+{
+  if(!_imgItem) return;
+  int size = _resizeWidget.brushSizeSlider->value();
+  QPixmap pix(size+1,size+1);
+  pix.fill(Qt::transparent);
+  QPainter p(&pix);
+  p.drawEllipse( 0, 0, size, size);
+  _imgItem->setCursor( QCursor(pix) );
 }
 
 void MainWindow::createActions()
@@ -481,15 +520,20 @@ void MainWindow::createActions()
   _viewEdge->setShortcut(tr("Ctrl+E"));
   _viewEdge->setCheckable(true);
   _viewEdge->setEnabled(false);
-  _viewEnergy = new QAction(tr("View Energy"), this);
-  _viewEnergy->setShortcut(tr("Ctrl+N"));
-  _viewEnergy->setCheckable(true);
-  _viewEnergy->setEnabled(false);
+  _viewVEnergy = new QAction(tr("View Vertical Energy"), this);
+  _viewVEnergy->setShortcut(tr("Ctrl+N"));
+  _viewVEnergy->setCheckable(true);
+  _viewVEnergy->setEnabled(false);
+  _viewHEnergy = new QAction(tr("View Horizontal Energy"), this);
+  _viewHEnergy->setShortcut(tr("Ctrl+H"));
+  _viewHEnergy->setCheckable(true);
+  _viewHEnergy->setEnabled(false);
   _viewGroup = new QActionGroup(this);
   _viewGroup->addAction(_viewImage);
   _viewGroup->addAction(_viewGreyscale);
   _viewGroup->addAction(_viewEdge);
-  _viewGroup->addAction(_viewEnergy);
+  _viewGroup->addAction(_viewVEnergy);
+  _viewGroup->addAction(_viewHEnergy);  
   connect(_viewGroup, SIGNAL(triggered(QAction*)), this, SLOT(changeView(QAction*)));
   _viewImage->setChecked(true);
   
@@ -536,7 +580,8 @@ void MainWindow::createMenus()
   _viewMenu->addAction(_viewImage);
   _viewMenu->addAction(_viewGreyscale);
   _viewMenu->addAction(_viewEdge);
-  _viewMenu->addAction(_viewEnergy);
+  _viewMenu->addAction(_viewVEnergy);
+  _viewMenu->addAction(_viewHEnergy);
   _viewMenu->addSeparator();
   _viewMenu->addAction(_zoomInAct);
   _viewMenu->addAction(_zoomOutAct);
@@ -585,4 +630,3 @@ void MainWindow::addToUndoStack(QImage img)
   _undoAct->setEnabled( _undoStackPos > 1 );
   _repeatAct->setEnabled( _undoStackPos < _undoStack.size()-1 );
 }
-

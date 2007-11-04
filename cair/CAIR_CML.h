@@ -21,13 +21,11 @@
 //For standard color images, use the type CML_color.
 //For energy, edges, and weights, use the type CML_int.
 //This class is used to replace and consolidate the several types I had prevously maintained seperately.
-//This will also give a slight performance boost, as EasyBMP wasn't really intended for such things...
 
 //Note for developers: Unfortunetly, this class means that a seperate translation function will need
 //	to be written to translate from whatever internal image object to the CML_Matrix. This will keep CAIR
 //	more flexable, but adds another small step.
 
-#include <vector>
 #include <limits>
 
 using namespace std;
@@ -46,60 +44,103 @@ struct CML_RGBA
 //MAX will return the integer maximum value if out of bounds, used only for integer types.
 //ZERO will return zero if out of bounds, also for integer types.
 //For all other types DON'T use Get() with the CML_Bounds parameter. Either use Get(int x, int y)
-//only if you are aware of its operation, or just use the [][] operators if you can't go out-of-bounds.
+//only if you are aware of its operation, or just use the () operators if you can't go out-of-bounds.
 enum CML_bounds { MAX, ZERO };
 
 template <typename T>
 class CML_Matrix
 {
 public:
-	//simple constructor
+	//Simple constructor.
 	CML_Matrix( int x, int y )
 	{
-		CML_Matrix::Resize( x, y );
+		Allocate_Matrix( x, y );
+		current_x = x;
+		current_y = y;
+	}
+	//Simple destructor.
+	~CML_Matrix()
+	{
+		Deallocate_Matrix();
 	}
 
-	//lets for direct access of the matrix
-	vector<T>& operator[]( int x )
+	//Assignment operator; not really fast, but it works reasonably well.
+	CML_Matrix& operator= ( const CML_Matrix& input )
+	{
+		if( this == &input ) //self-assignment check
+		{
+			return *this;
+		}
+		Deallocate_Matrix();
+		Allocate_Matrix( input.current_x, input.current_y );
+		current_x = input.current_x;
+		current_y = input.current_y;
+
+		for( int x = 0; x < current_x; x++ )
+		{
+			for( int y = 0; y < current_y; y++ )
+			{
+				matrix[x][y] = input(x,y);
+			}
+		}
+		return *this;
+	}
+
+	//Set all values.
+	//This is important to do since the memory is not set a value after it is allocated.
+	//Make sure to do this for the weights.
+	void Fill( T value )
+	{
+		for( int x = 0; x < CML_Matrix::Width(); x++ )
+		{
+			for( int y = 0; y < CML_Matrix::Height(); y++ )
+			{
+				matrix[x][y] = value;
+			}
+		}
+	}
+
+	//Access the matrix members.
+	//NOTE: There are no bounds check with this operation.
+	//		If bounds check is desired, use the Get() method.
+	inline const T& operator()( int x, int y ) const
+	{
+		return matrix[x][y];
+	}
+
+	//For the assignment () calls.
+	//Only peforms a minor x direction check.
+	inline T& operator()( int x, int y )
 	{
 		if( x < 0 ) //minor check for add/remove
 		{
 			x = 0;
 		}
-		return matrix[x];
+		return matrix[x][y];
 	}
 
-	int Width()
+	//Returns the current image Width.
+	inline int Width()
 	{
-		return (int)matrix.size();
+		return current_x;
 	}
 
-	int Height()
+	//Returns the current image Height.
+	inline int Height()
 	{
-		return (int)matrix[0].size();
+		return current_y;
 	}
 
-	//non-destructive resize of the matrix to the new paramaters
-	void Resize( int x, int y )
-	{
-		matrix.resize( x );
-
-		for( int i = 0; i < CML_Matrix::Width(); i++ )
-		{
-			matrix[i].resize( y );
-		}
-	}
-
-	//does a flip/rotate on Source and stores it into ourselves
+	//Does a flip/rotate on Source and stores it into ourself.
 	void Transpose( CML_Matrix<T> * Source )
 	{
-		CML_Matrix::Resize( (*Source).Height(), (*Source).Width() );
+		CML_Matrix::D_Resize( (*Source).Height(), (*Source).Width() );
 
 		for( int x = 0; x < (*Source).Width(); x++ )
 		{
 			for( int y = 0; y < (*Source).Height(); y++ )
 			{
-				matrix[y][x] = (*Source)[x][y];
+				matrix[y][x] = (*Source)(x,y);
 			}
 		}
 	}
@@ -126,9 +167,9 @@ public:
 		return matrix[x][y];
 	}
 
-	//use only for integer types, otherwise this won't even compile
-	//kinda hackish that I have to overload it to get it to work right... to fix someday
-	//constrains in the X direction and replaces the old Get_Element() function
+	//Return a very large value or zero if out-of-bounds in the x direction.
+	//Only intended for integer types!!
+	//Use for now, but later optimize so this isn't required.
 	T Get( int x, int y, CML_bounds clip_type )
 	{
 		switch( clip_type )
@@ -156,18 +197,95 @@ public:
 		};
 	}
 
-	//memory reservation for the internal matrix
-	void Reserve( int x, int y )
+	//Destructive resize of the matrix.
+	void D_Resize( int x, int y )
 	{
-		for( int i = 0; i < CML_Matrix::Width(); i++ )
+		Deallocate_Matrix();
+		Allocate_Matrix( x, y );
+		current_x = x;
+		current_y = y;
+	}
+
+	//Non-destructive resize, but only in the x direction.
+	void Resize_Width( int x )
+	{
+		if( x > current_x )
 		{
-			matrix[i].reserve( y );
+			//create new "master" row
+			T ** temp = new T*[x];
+
+			//copy over the old pointer values
+			for( int i = 0; i < current_x; i++ )
+			{
+				temp[i] = matrix[i];
+			}
+
+			//create new columns as needed
+			while( x > current_x )
+			{
+				temp[current_x] = new T[current_y];
+				current_x++;
+			}
+
+			//delete the old "master" row
+			delete[] matrix;
+
+			//assign the new row;
+			matrix = temp;
 		}
-		matrix.reserve( x );
+		else if( x < current_x )
+		{
+			//create new master row
+			T ** temp = new T*[x];
+
+			//copy over the old values
+			for( int i = 0; i < x; i++ )
+			{
+				temp[i] = matrix[i];
+			}
+
+			//delete the old columns
+			while( x < current_x )
+			{
+				current_x--;
+				delete[] matrix[current_x];
+			}
+
+			//delete the old master row
+			delete[] matrix;
+
+			//reassign it
+			matrix = temp;
+		}
 	}
 
 private:
-	vector< vector<T> > matrix;
+	//Simple 2D allocation algorithm.
+	//The size variables must be assigned seperately.
+	void Allocate_Matrix( int x, int y )
+	{
+		matrix = new T*[x];
+
+		for( int i = 0; i < x; i++ )
+		{
+			matrix[i] = new T[y];
+		}
+	}
+	//Simple 2D deallocation algorithm.
+	//Doest not maintain size variables.
+	void Deallocate_Matrix()
+	{
+		for( int i = 0; i < current_x; i++ )
+		{
+			delete[] matrix[i];
+		}
+
+		delete[] matrix;
+	}
+
+	T ** matrix;
+	int current_x;
+	int current_y;
 };
 
 //typedef'ing to make it a little cleaner
