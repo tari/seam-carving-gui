@@ -6,11 +6,17 @@ TEMPLATE = app
 QMAKE_CC = g++ 
 TARGET = SeamCarvingGui
 RC_FILE = seam-carving-gui.rc
+CONFIG += release
 
 win32{
   #In windows, we build a static binary, so we declare the jpeg plugin here
   QTPLUGIN=qjpeg
   DEFINES += STATIC_PLUGINS
+}
+
+macx{
+  CONFIG += x86 ppc
+  ICON = g.icns
 }
 
 # Incluce CAIR as backend
