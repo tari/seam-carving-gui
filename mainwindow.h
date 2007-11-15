@@ -43,6 +43,8 @@ private slots:
   void paste();  
   void print();
   void resizeButtonClicked();
+  void removeButtonClicked();
+  void cairRemove();
   void cairResize(int newWidth, int newHeight);  
   void clearMask();
   void paintMask(QPointF oldPos, QPointF newPos);

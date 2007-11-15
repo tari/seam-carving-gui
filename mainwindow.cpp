@@ -27,9 +27,6 @@
 #include "cair/CAIR.h"
 #include <vector>
 
-#define ADD_WEIGHT_PARAM 75
-#define WEIGHT_SCALE 5
-
 QProgressDialog *gProg;
 int updateCallback(int)
 {
@@ -126,10 +123,13 @@ MainWindow::MainWindow()
   _resizeDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
   QWidget *holderWidget = new DockWrapper(_resizeDock);
   _resizeWidget.setupUi(holderWidget);
-  QIntValidator *validtor = new QIntValidator(1, 100000, holderWidget);
+  QIntValidator *validtor = new QIntValidator(1, 2000000, holderWidget);
   _resizeWidget.widthLineEdit->setValidator(validtor);
   _resizeWidget.heightLineEdit->setValidator(validtor);
+  _resizeWidget.addWeightLineEdit->setValidator(validtor);
+  _resizeWidget.weightScaleLineEdit->setValidator(validtor);
   connect(_resizeWidget.resizeButton, SIGNAL(clicked()), this, SLOT(resizeButtonClicked()));
+  connect(_resizeWidget.removeButton, SIGNAL(clicked()), this, SLOT(removeButtonClicked()));
   connect(_resizeWidget.clearButton, SIGNAL(clicked()), this, SLOT(clearMask()));
   connect(_resizeWidget.brushSizeSlider, SIGNAL(sliderMoved(int)), this, SLOT(updateCursor()));
   _resizeDock->setWidget(holderWidget);
@@ -137,6 +137,24 @@ MainWindow::MainWindow()
   addDockWidget(Qt::RightDockWidgetArea, _resizeDock);
   _viewMenu->addAction(_resizeDock->toggleViewAction());
   _resizeDock->setEnabled(false);
+
+  QString addWeightToolTip = tr(
+    "How much artificial weight is applied to new seams during enlarging. Too\n"
+    "small and it will cause stretching, too large and it may start inserting\n"
+    "into areas marked for protection.");
+  QString weightScaleToolTip = tr(
+    "The maximum possible weight value applied for protection/removal. This\n"
+    "value determines what the Brush Weight slider uses for its base value.");
+  QString hdToolTip = tr(
+    "Enable \"High Definition\" mode. This mode is useful when decreasing the\n"
+    "dimensions of an image in both dimensions and produces somewhat better\n"
+    "results at the cost of slower performance.");
+    
+  _resizeWidget.addWeightLabel->setToolTip(addWeightToolTip);
+  _resizeWidget.addWeightLineEdit->setToolTip(addWeightToolTip);
+  _resizeWidget.weightScaleLabel->setToolTip(weightScaleToolTip);
+  _resizeWidget.weightScaleLineEdit->setToolTip(weightScaleToolTip);
+  _resizeWidget.hdCheckBox->setToolTip(hdToolTip);
 
   resize(700, 400);
 }
@@ -298,10 +316,119 @@ void MainWindow::resizeButtonClicked()
   cairResize(newWidth, newHeight);
 }
 
+void MainWindow::removeButtonClicked()
+{
+  cairRemove();
+}
+
+void MainWindow::cairRemove()
+{
+  int width = _img.width();
+  int height = _img.height();
+  int weight_scale = (int)(_resizeWidget.weightScaleLineEdit->text().toInt() * (_resizeWidget.brushWeightSlider->value() / 100.0));
+
+  //Transfer the image over to cair image format.
+  CML_color source(width, height);
+  CML_color dest(width, height);  
+  CML_int weights(width, height);
+  QImagetoCML(_img,source);
+  QImage mskImg = _maskPix.toImage();
+  for( int j=0; j<height; j++ )
+  {
+    for( int i=0; i<width; i++ )
+    {
+      QRgb m = mskImg.pixel(i,j);
+      if(qGreen(m) > 0)
+        weights(i,j) = (int)(qGreen(m) * weight_scale);
+      else if(qRed(m) > 0)
+        weights(i,j) = (int)(qRed(m) * -weight_scale);
+      else
+        weights(i,j) = 0;
+    }
+  }
+
+  int negative_x = 0;
+  int negative_y = 0;
+  int total_time = 0;
+
+  //count how many negative columns exist
+  for( int x = 0; x < weights.Width(); x++ )
+  {
+    for( int y = 0; y < weights.Height(); y++ )
+    {
+      if( weights(x,y) < 0 )
+      {
+        negative_x++;
+        break;
+      }
+    }
+  }
+
+  //count how many negative rows exist
+  for( int y = 0; y < weights.Height(); y++ )
+  {
+    for( int x = 0; x < weights.Width(); x++ )
+    {
+      if( weights(x,y) < 0 )
+      {
+        negative_y++;
+        break;
+      }
+    }
+  }
+
+  if( negative_x > negative_y )
+  {
+    total_time = negative_y * 2; //remove, then add back. This MAY not totally work, thats why it's experimental
+  }
+  else
+  {
+    total_time = negative_x * 2;
+  }
+  if( total_time == 0 )
+  {
+    QMessageBox::information(this, tr("Seam Carving GUI"),
+                             tr("Please mark an area for removal first."));
+    return;
+  }
+
+  QProgressDialog prog("Removing...", "&Cancel", 0, total_time, this);
+  gProg = &prog;
+  qApp->processEvents();
+
+  //Call CAIR
+  double quality = _resizeWidget.qualitySlider->value() / 100.0;
+  int add_weight = _resizeWidget.addWeightLineEdit->text().toInt();
+  CAIR_Removal( &source, &weights, quality, add_weight, &dest, updateCallback );
+  if(prog.wasCanceled())
+    return;
+  QImage newImg = CMLtoQImage(dest);
+  addToUndoStack(newImg);
+  _img = newImg;
+  _imgItem->setPixmap(QPixmap::fromImage(_img));
+  //Set the weight mask to the now reduced size version shrunk by CAIR
+  QImage maskImg(_img.width(), _img.height(), QImage::Format_ARGB32);
+  maskImg.fill(qRgba(0,0,0,0));
+  for( int j=0; j<_img.height(); j++ )
+  {
+    for( int i=0; i<_img.width(); i++ )
+    {
+      if(weights(i,j) > 0)
+        maskImg.setPixel(i, j, qRgba( 0, weights(i,j) / weight_scale, 0, weights(i,j) / weight_scale));
+      else if(weights(i,j) < 0)
+        maskImg.setPixel(i, j, qRgba( weights(i,j) / -weight_scale, 0, 0, weights(i,j) / -weight_scale));
+    }
+  }
+  _maskPix = QPixmap::fromImage(maskImg);
+  _maskItem->setPixmap(_maskPix);
+  _scaleFactor = 1.0;
+}
+
 void MainWindow::cairResize(int newWidth, int newHeight)
 {
   int width = _img.width();
   int height = _img.height();
+  int weight_scale = (int)(_resizeWidget.weightScaleLineEdit->text().toInt() * (_resizeWidget.brushWeightSlider->value() / 100.0));
   if(newWidth < 1 || newHeight < 1)
   {
     QMessageBox::information(this, tr("Seam Carving GUI"),
@@ -313,7 +440,7 @@ void MainWindow::cairResize(int newWidth, int newHeight)
 
   int widthAdjustment = (width < newWidth ? newWidth - width : width - newWidth);
   int heightAdjustment = (height < newHeight ? newHeight - height : height - newHeight);
-  QProgressDialog prog("Resizing", "&Cancel", 0, widthAdjustment + heightAdjustment, this);
+  QProgressDialog prog("Resizing...", "&Cancel", 0, widthAdjustment + heightAdjustment, this);
   gProg = &prog;
   qApp->processEvents();
   
@@ -329,17 +456,24 @@ void MainWindow::cairResize(int newWidth, int newHeight)
     {
       QRgb m = mskImg.pixel(i,j);
       if(qGreen(m) > 0)
-        weights(i,j) = qGreen(m) * WEIGHT_SCALE;
+        weights(i,j) = (int)(qGreen(m) * weight_scale);
       else if(qRed(m) > 0)
-        weights(i,j) = qRed(m) * -WEIGHT_SCALE;
+        weights(i,j) = (int)(qRed(m) * -weight_scale);
       else
         weights(i,j) = 0;
     }
   }
   //Call CAIR
   double quality = _resizeWidget.qualitySlider->value() / 100.0;
-  int add_weight = ADD_WEIGHT_PARAM;
-  CAIR( &source, &weights, newWidth, newHeight, quality, add_weight, &dest, updateCallback );
+  int add_weight = _resizeWidget.addWeightLineEdit->text().toInt();
+  if( !_resizeWidget.hdCheckBox->isChecked() )
+  {
+    CAIR( &source, &weights, newWidth, newHeight, quality, add_weight, &dest, updateCallback );
+  }
+  else
+  {
+    CAIR_HD( &source, &weights, newWidth, newHeight, add_weight, &dest, updateCallback );
+  }
   if(prog.wasCanceled())
     return;
   QImage newImg = CMLtoQImage(dest);
@@ -354,9 +488,9 @@ void MainWindow::cairResize(int newWidth, int newHeight)
     for( int i=0; i<_img.width(); i++ )
     {
       if(weights(i,j) > 0)
-        maskImg.setPixel(i, j, qRgba( 0, weights(i,j) / WEIGHT_SCALE, 0, weights(i,j) / WEIGHT_SCALE));
+        maskImg.setPixel(i, j, qRgba( 0, weights(i,j) / weight_scale, 0, weights(i,j) / weight_scale));
       else if(weights(i,j) < 0)
-        maskImg.setPixel(i, j, qRgba( weights(i,j) / -WEIGHT_SCALE, 0, 0, weights(i,j) / -WEIGHT_SCALE));
+        maskImg.setPixel(i, j, qRgba( weights(i,j) / -weight_scale, 0, 0, weights(i,j) / -weight_scale));
     }
   }
   _maskPix = QPixmap::fromImage(maskImg);

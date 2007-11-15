@@ -25,7 +25,7 @@ using namespace std;
 typedef int (*ProgressPtr)(int);
 
 //The Great CAIR Frontend. This baby will resize Source using Weights into the dimensions supplied by goal_x and goal_y into Dest.
-//It will use quality as a factor to determine how often the edge is generated between removals.
+//It will use quality as a factor to determine how often the edge is generated between removals/additions.
 //Weights allows for an area to be biased for remvoal/protection. A large positive value will protect a portion of the image,
 //and a large negative value will remove it. Do not exceed the limits of int's, as this will cause an overflow. I would suggest
 //a safe range of -2,000,000 to 2,000,000 (this is a maximum guideline, much smaller weights will work just as well for most images).
@@ -39,7 +39,7 @@ typedef int (*ProgressPtr)(int);
 //Note: Weights does affect path adding, so a large negative weight will atract the most paths. Also, if add_weight is too large,
 //it may eventually force new paths into areas marked for protection. I am unsure of an exact ratio on such things at this time.
 //The internal order is this: remove horizontal, remove vertical, add horizontal, add vertical.
-void CAIR( CML_color * Source, CML_int * Weights, int goal_x, int goal_y, double quality, int add_weight, CML_color * Dest, ProgressPtr p=0 );
+bool CAIR( CML_color * Source, CML_int * Weights, int goal_x, int goal_y, double quality, int add_weight, CML_color * Dest, ProgressPtr p=0 );
 
 //Simple function that generates the grayscale image of Source and places the result in Dest.
 void CAIR_Grayscale( CML_color * Source, CML_color * Dest );
@@ -59,6 +59,12 @@ void CAIR_H_Energy( CML_color * Source, CML_color * Dest );
 //Any area with a negative weight will be removed. This function will automatically remove that portion and
 //return the image back to its origional dimensions. It will determine which direction to remove (either width or height)
 //based on the number of negative columns and rows. This is to minimize the amount of change needed.
-void CAIR_Removal( CML_color * Source, CML_int * Weights, double quality, int add_weight, CML_color * Dest );
+void CAIR_Removal( CML_color * Source, CML_int * Weights, double quality, int add_weight, CML_color * Dest, ProgressPtr p=0 );
+
+//This works as CAIR, except here maximum quality is attempted. When removing in both directions some amount, CAIR_HD()
+//will determine which direction has the least amount of energy and then removes in that direction. This is only done
+//for removal, since enlarging will not benifit, although this function will perform addition just like CAIR().
+//Inputs are the same as CAIR(), except quality is assumed to be always one.
+void CAIR_HD( CML_color * Source, CML_int * Weights, int goal_x, int goal_y, int add_weight, CML_color * Dest, ProgressPtr p=0 );
 
 #endif
