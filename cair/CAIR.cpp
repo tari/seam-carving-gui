@@ -19,9 +19,15 @@
 
 //TODO (maybe):
 //    - Try doing Poisson image reconstruction instead of the averaging technique in CAIR_HD() if I can figure it out (see the ReadMe).
+//    - Setup Energy_Map() to accept up to 4 threads, which may or may not increase performance.
 //    - Abstract out pthreads into macros allowing for mutliple thread types to be used (ugh, not for a while at least)
 //    - Maybe someday push CAIR into OO land and create a class out of it.
 //
+//CAIR v2.10 Changelog: (The great title of v3.0 is when I have CAIR_HD() using Poisson reconstruction, a ways away...)
+//  - Removed multiple levels of derefrencing in all the thread functions for a 15% speed boost across the board.
+//  - Changed the way CAIR_Removal() works for more flexability and better operation.
+//  - Fixed a bug in CAIR_Removal(): infinite loop problem that got eliminated with its new operation
+//  - Some comment updates.
 //CAIR v2.9 Changelog:
 //  - Row-majorized and multi-threaded Add_Weights(), which gave a 40% speed boost while enlarging.
 //  - Row-majorized Edge_Detect() (among many other functions) which gave about a 10% speed boost with quality == 1.
@@ -142,23 +148,22 @@ CML_byte Grayscale_Pixel( CML_RGBA * pixel )
 //Our thread function for the Grayscale
 void * Gray_Quadrant( void * area )
 {
-    Gray_Params * gray_area;
-    gray_area = (Gray_Params *)area;
+    Gray_Params gray_area = (*((Gray_Params *)area));
 
     CML_byte gray = 0;
 
-    for( int y = gray_area->top_y; y <= gray_area->bot_y; y++ )
+    for( int y = gray_area.top_y; y <= gray_area.bot_y; y++ )
     {
-        for( int x = gray_area->top_x; x <= gray_area->bot_x; x++ )
+        for( int x = gray_area.top_x; x <= gray_area.bot_x; x++ )
         {
-            gray = Grayscale_Pixel( &(*(gray_area->Source))(x,y) );
+            gray = Grayscale_Pixel( &(*(gray_area.Source))(x,y) );
 
-            (*(gray_area->Dest))(x,y) = gray;
+            (*(gray_area.Dest))(x,y) = gray;
         }
     }
 
     return NULL;
-}
+} //end Gray_Quadrant()
 
 
 //Sort-of does a RGB->YUV conversion
@@ -216,7 +221,7 @@ void Grayscale_Image( CML_color * Source, CML_gray * Dest )
     pthread_join( gray_threads[1], NULL );
     pthread_join( gray_threads[2], NULL );
     pthread_join( gray_threads[3], NULL );
-}
+} //end Grayscale_Image()
 
 /*****************************************************************************************
 **                                   E D G E                                            **
@@ -262,14 +267,13 @@ int Convolve_Pixel( CML_gray * Source, int x, int y, edge_safe safety )
 //This is multi-threaded to 4 threads, spliting the image into 4 quadrants
 void * Edge_Quadrant( void * area )
 {
-    Edge_Params * edge_area;
-    edge_area = (Edge_Params *)area;
+    Edge_Params edge_area = (*((Edge_Params *)area));
 
-    for( int y = edge_area->top_y; y <= edge_area->bot_y; y++ )
+    for( int y = edge_area.top_y; y <= edge_area.bot_y; y++ )
     {
-        for( int x = edge_area->top_x; x <= edge_area->bot_x; x++ )
+        for( int x = edge_area.top_x; x <= edge_area.bot_x; x++ )
         {
-            (*(edge_area->Dest))(x,y) = Convolve_Pixel( edge_area->Source, x, y, edge_area->safety );
+            (*(edge_area.Dest))(x,y) = Convolve_Pixel( edge_area.Source, x, y, edge_area.safety );
         }
     }
 
@@ -368,7 +372,7 @@ void Edge_Detect( CML_gray * Source, CML_int * Dest )
     pthread_join( edge_threads[1], NULL );
     pthread_join( edge_threads[2], NULL );
     pthread_join( edge_threads[3], NULL );
-}
+} //end Edge_Detect()
 
 /*****************************************************************************************
 **                                     E N E R G Y                                      **
@@ -457,130 +461,147 @@ long Generate_Path( CML_int * Energy, int min_x, vector<pixel> * Path )
 ////
 ////main_thread waits for energy_left to join
 ////main_thread waits for energy_right to join
+
+//The reason for the crazy mutex locking is because I need to evenly split the matrix in half for each thread.
+//So, for the boundry between the two threads, they will try to access a value that the other thread is
+//managing. For example, the left thread needs the value of an element on the boundry between the left and right threads.
+//It needs the value of the three pixels above it, one of them, the top-right, is managed by the right thread.
+//The right thread might not have gotten around to filling that value in, so the Left thread must check.
+//It does that by trying to lock the mutex on that value. If the right thread already filled that value in,
+//it'll get it immediately and continue. If not, the left thread will block until the right thread gets around
+//to filling it in and unlocking the mutex. That means each value along the border has its own mutex.
+//The thread responsible for those values must lock those mutexes first before the other thread can try.
+//This limits one thread only getting about 2 rows ahead of the other thread before it finds itself blocked.
+//This is the only solution that I could come up with given the nature of the algorithm. Sure, there are many other
+//ways to do this, and all of them that I could think of don't really offer much advantage over another.
+//There are also methods to preserve the unchanged portions of the energy map between removals/additions, however,
+//only 25% of it will remain unchanged. Coding in conditions to handle those situations will I belive be slower
+//that just recalculating all of it again. It is also possible to have more than two threads. The interior threads
+//will have two sets of mutexes, one set on each side of it. I don't see this helping me on my dual-core much, right now,
+//although I must admit I need to test it. Quad-cores may like to have 4 threads here if just to help a bit.
+
 void * Energy_Left( void * area )
 {
-    Energy_Params * energy_area;
-    energy_area = (Energy_Params *)area;
+    Energy_Params energy_area = (*((Energy_Params *)area));
     int min = 0;
 
     //lock our mutexes
-    for( int i = 0; i < (int)(*(energy_area->Mine)).size(); i++ )
+    for( int i = 0; i < (int)(*(energy_area.Mine)).size(); i++ )
     {
-        pthread_mutex_lock( &(*(energy_area->Mine))[i] );
+        pthread_mutex_lock( &(*(energy_area.Mine))[i] );
     }
 
     //signal we are done
-    pthread_mutex_lock( energy_area->Lock_Done_mutex );
-    pthread_cond_signal( energy_area->Lock_Done );
-    pthread_mutex_unlock( energy_area->Lock_Done_mutex );
+    pthread_mutex_lock( energy_area.Lock_Done_mutex );
+    pthread_cond_signal( energy_area.Lock_Done );
+    pthread_mutex_unlock( energy_area.Lock_Done_mutex );
 
     //wait until we are good to go
-    pthread_mutex_lock( energy_area->Good_to_Go );
+    pthread_mutex_lock( energy_area.Good_to_Go );
 
     //set the first row with the correct energy
-    for( int x = energy_area->top_x; x <= energy_area->bot_x; x++ )
+    for( int x = energy_area.top_x; x <= energy_area.bot_x; x++ )
     {
-        (*(energy_area->Energy_Map))(x,0) = (*(energy_area->Edge))(x,0) + (*(energy_area->Weights))(x,0);
+        (*(energy_area.Energy_Map))(x,0) = (*(energy_area.Edge))(x,0) + (*(energy_area.Weights))(x,0);
     }
     //now signal that one is done
-    pthread_mutex_unlock( &(*(energy_area->Mine))[0] );
+    pthread_mutex_unlock( &(*(energy_area.Mine))[0] );
 
-    for( int y = 1; y < (*(energy_area->Edge)).Height(); y++ )
+    for( int y = 1; y < (*(energy_area.Edge)).Height(); y++ )
     {
         //special edge case, take only the minimum of two
-        min = MIN( (*(energy_area->Energy_Map))(energy_area->top_x,y-1), (*(energy_area->Energy_Map))(energy_area->top_x+1,y-1) );
-        (*(energy_area->Energy_Map))(energy_area->top_x,y) = min + (*(energy_area->Edge))(energy_area->top_x,y) + (*(energy_area->Weights))(energy_area->top_x,y);
+        min = MIN( (*(energy_area.Energy_Map))(energy_area.top_x,y-1), (*(energy_area.Energy_Map))(energy_area.top_x+1,y-1) );
+        (*(energy_area.Energy_Map))(energy_area.top_x,y) = min + (*(energy_area.Edge))(energy_area.top_x,y) + (*(energy_area.Weights))(energy_area.top_x,y);
 
-        for( int x = energy_area->top_x + 1; x < energy_area->bot_x; x++ ) //+1 because we handle that seperately
+        for( int x = energy_area.top_x + 1; x < energy_area.bot_x; x++ ) //+1 because we handle that seperately
         {
             //grab the minimum of straight up, up left, or up right
-            min = min_of_three( (*(energy_area->Energy_Map))(x-1,y-1),
-                                (*(energy_area->Energy_Map))(x,y-1),
-                                (*(energy_area->Energy_Map))(x+1,y-1) );
+            min = min_of_three( (*(energy_area.Energy_Map))(x-1,y-1),
+                                (*(energy_area.Energy_Map))(x,y-1),
+                                (*(energy_area.Energy_Map))(x+1,y-1) );
 
             //set the energy of the pixel
-            (*(energy_area->Energy_Map))(x,y) = min + (*(energy_area->Edge))(x,y) + (*(energy_area->Weights))(x,y);
+            (*(energy_area.Energy_Map))(x,y) = min + (*(energy_area.Edge))(x,y) + (*(energy_area.Weights))(x,y);
         }
         //get access to the bad pixel (the one not maintained by us)
-        pthread_mutex_lock( &(*(energy_area->Not_Mine))[y-1] );
+        pthread_mutex_lock( &(*(energy_area.Not_Mine))[y-1] );
 
         //grab the minimum of straight up, up left, or up right
-        min = min_of_three( (*(energy_area->Energy_Map))(energy_area->bot_x-1,y-1),
-                            (*(energy_area->Energy_Map))(energy_area->bot_x,y-1),
-                            (*(energy_area->Energy_Map))(energy_area->bot_x+1,y-1) );
+        min = min_of_three( (*(energy_area.Energy_Map))(energy_area.bot_x-1,y-1),
+                            (*(energy_area.Energy_Map))(energy_area.bot_x,y-1),
+                            (*(energy_area.Energy_Map))(energy_area.bot_x+1,y-1) );
 
         //set the energy of the pixel
-        (*(energy_area->Energy_Map))(energy_area->bot_x,y) = min + (*(energy_area->Edge))(energy_area->bot_x,y) + (*(energy_area->Weights))(energy_area->bot_x,y);
+        (*(energy_area.Energy_Map))(energy_area.bot_x,y) = min + (*(energy_area.Edge))(energy_area.bot_x,y) + (*(energy_area.Weights))(energy_area.bot_x,y);
 
         //now signal this side is done
-        pthread_mutex_unlock( &(*(energy_area->Mine))[y] );
+        pthread_mutex_unlock( &(*(energy_area.Mine))[y] );
     }
 
     return NULL;
-}
+} //end Energy_Left()
 
 void * Energy_Right( void * area )
 {
-    Energy_Params * energy_area;
-    energy_area = (Energy_Params *)area;
+    Energy_Params energy_area = (*((Energy_Params *)area));
     int min = 0;
 
     //lock our mutexes
-    for( int i = 0; i < (int)(*(energy_area->Mine)).size(); i++ )
+    for( int i = 0; i < (int)(*(energy_area.Mine)).size(); i++ )
     {
-        pthread_mutex_lock( &(*(energy_area->Mine))[i] );
+        pthread_mutex_lock( &(*(energy_area.Mine))[i] );
     }
 
     //signal we are done
-    pthread_mutex_lock( energy_area->Lock_Done_mutex );
-    pthread_cond_signal( energy_area->Lock_Done );
-    pthread_mutex_unlock( energy_area->Lock_Done_mutex );
+    pthread_mutex_lock( energy_area.Lock_Done_mutex );
+    pthread_cond_signal( energy_area.Lock_Done );
+    pthread_mutex_unlock( energy_area.Lock_Done_mutex );
 
     //wait until we are good to go
-    pthread_mutex_lock( energy_area->Good_to_Go );
+    pthread_mutex_lock( energy_area.Good_to_Go );
 
     //set the first row with the correct energy
-    for( int x = energy_area->top_x; x <= energy_area->bot_x; x++ )
+    for( int x = energy_area.top_x; x <= energy_area.bot_x; x++ )
     {
-        (*(energy_area->Energy_Map))(x,0) = (*(energy_area->Edge))(x,0) + (*(energy_area->Weights))(x,0);
+        (*(energy_area.Energy_Map))(x,0) = (*(energy_area.Edge))(x,0) + (*(energy_area.Weights))(x,0);
     }
     //now signal that one is done
-    pthread_mutex_unlock( &(*(energy_area->Mine))[0] );
+    pthread_mutex_unlock( &(*(energy_area.Mine))[0] );
 
-    for( int y = 1; y < (*(energy_area->Edge)).Height(); y++ )
+    for( int y = 1; y < (*(energy_area.Edge)).Height(); y++ )
     {
         //get access to the bad pixel (the one not maintained by us)
-        pthread_mutex_lock( &(*(energy_area->Not_Mine))[y-1] );
+        pthread_mutex_lock( &(*(energy_area.Not_Mine))[y-1] );
 
         //grab the minimum of straight up, up left, or up right
-        min = min_of_three( (*(energy_area->Energy_Map))(energy_area->top_x-1,y-1),
-                            (*(energy_area->Energy_Map))(energy_area->top_x,y-1),
-                            (*(energy_area->Energy_Map))(energy_area->top_x+1,y-1) );
+        min = min_of_three( (*(energy_area.Energy_Map))(energy_area.top_x-1,y-1),
+                            (*(energy_area.Energy_Map))(energy_area.top_x,y-1),
+                            (*(energy_area.Energy_Map))(energy_area.top_x+1,y-1) );
 
         //set the energy of the pixel
-        (*(energy_area->Energy_Map))(energy_area->top_x,y) = min + (*(energy_area->Edge))(energy_area->top_x,y) + (*(energy_area->Weights))(energy_area->top_x,y);
+        (*(energy_area.Energy_Map))(energy_area.top_x,y) = min + (*(energy_area.Edge))(energy_area.top_x,y) + (*(energy_area.Weights))(energy_area.top_x,y);
 
         //now signal this side is done
-        pthread_mutex_unlock( &(*(energy_area->Mine))[y] );
+        pthread_mutex_unlock( &(*(energy_area.Mine))[y] );
 
-        for( int x = energy_area->top_x + 1; x < energy_area->bot_x; x++ ) //+1 because we handle that seperately
+        for( int x = energy_area.top_x + 1; x < energy_area.bot_x; x++ ) //+1 because we handle that seperately
         {
             //grab the minimum of straight up, up left, or up right
-            min = min_of_three( (*(energy_area->Energy_Map))(x-1,y-1),
-                                (*(energy_area->Energy_Map))(x,y-1),
-                                (*(energy_area->Energy_Map))(x+1,y-1) );
+            min = min_of_three( (*(energy_area.Energy_Map))(x-1,y-1),
+                                (*(energy_area.Energy_Map))(x,y-1),
+                                (*(energy_area.Energy_Map))(x+1,y-1) );
 
             //set the energy of the pixel
-            (*(energy_area->Energy_Map))(x,y) = min + (*(energy_area->Edge))(x,y) + (*(energy_area->Weights))(x,y);
+            (*(energy_area.Energy_Map))(x,y) = min + (*(energy_area.Edge))(x,y) + (*(energy_area.Weights))(x,y);
         }
         //special edge case, take only the minimum of two
-        min = MIN( (*(energy_area->Energy_Map))(energy_area->bot_x,y-1), (*(energy_area->Energy_Map))(energy_area->bot_x-1,y-1) );
-        (*(energy_area->Energy_Map))(energy_area->bot_x,y) = min + (*(energy_area->Edge))(energy_area->bot_x,y) + (*(energy_area->Weights))(energy_area->bot_x,y);
+        min = MIN( (*(energy_area.Energy_Map))(energy_area.bot_x,y-1), (*(energy_area.Energy_Map))(energy_area.bot_x-1,y-1) );
+        (*(energy_area.Energy_Map))(energy_area.bot_x,y) = min + (*(energy_area.Edge))(energy_area.bot_x,y) + (*(energy_area.Weights))(energy_area.bot_x,y);
 
     }
 
     return NULL;
-}
+} //end Energy_Right()
 
 //Calculates the energy map
 //This uses a dual-threaded approach. More than two threads becomes difficult, since one thread needs values from
@@ -659,7 +680,7 @@ void Energy_Map( CML_int * Edge, CML_int * Weights, CML_int * Map )
     //now wait on them
     pthread_join( energy_threads[0], NULL );
     pthread_join( energy_threads[1], NULL );
-}
+} //end Energy_Map()
 
 
 //Energy_Path() generates the least energy Path of the Edge and Weights and returns the total energy of that path.
@@ -723,31 +744,30 @@ struct Add_Params
 //This works like Remove_Quadrant, stripes across the image.
 void * Add_Quadrant( void * area )
 {
-    Add_Params * add_area;
-    add_area = (Add_Params *)area;
+    Add_Params add_area = (*((Add_Params *)area));
 
-    for( int y = add_area->top_y; y <= add_area->bot_y; y++ )
+    for( int y = add_area.top_y; y <= add_area.bot_y; y++ )
     {
-        pixel add = (*(add_area->Path))[y];
+        pixel add = (*(add_area.Path))[y];
 
         //shift over everyone to the right
-        (*(add_area->Source)).Shift_Row( add.x, y, 1 );
-        (*(add_area->AWeights)).Shift_Row( add.x, y, 1 );
-        (*(add_area->Weights)).Shift_Row( add.x, y, 1 );
-        (*(add_area->Edge)).Shift_Row( add.x, y, 1 );
-        (*(add_area->Grayscale)).Shift_Row( add.x, y, 1 );
+        (*(add_area.Source)).Shift_Row( add.x, y, 1 );
+        (*(add_area.AWeights)).Shift_Row( add.x, y, 1 );
+        (*(add_area.Weights)).Shift_Row( add.x, y, 1 );
+        (*(add_area.Edge)).Shift_Row( add.x, y, 1 );
+        (*(add_area.Grayscale)).Shift_Row( add.x, y, 1 );
 
         
         //go back and set the added pixel
-        (*(add_area->Source))(add.x,y) = Average_Pixels( (*(add_area->Source))(add.x,y), (*(add_area->Source)).Get(add.x-1,y));
-        (*(add_area->Weights))(add.x,y) = ( (*(add_area->Weights))(add.x,y) + (*(add_area->Weights)).Get(add.x-1,y) ) / 2;
-        (*(add_area->Edge))(add.x,y) = ( (*(add_area->Edge))(add.x,y) + (*(add_area->Edge)).Get(add.x-1,y) ) / 2;
-        (*(add_area->Grayscale))(add.x,y) = ( (*(add_area->Grayscale))(add.x,y) + (*(add_area->Grayscale)).Get(add.x-1,y) ) / 2;
+        (*(add_area.Source))(add.x,y) = Average_Pixels( (*(add_area.Source))(add.x,y), (*(add_area.Source)).Get(add.x-1,y));
+        (*(add_area.Weights))(add.x,y) = ( (*(add_area.Weights))(add.x,y) + (*(add_area.Weights)).Get(add.x-1,y) ) / 2;
+        (*(add_area.Edge))(add.x,y) = ( (*(add_area.Edge))(add.x,y) + (*(add_area.Edge)).Get(add.x-1,y) ) / 2;
+        (*(add_area.Grayscale))(add.x,y) = ( (*(add_area.Grayscale))(add.x,y) + (*(add_area.Grayscale)).Get(add.x-1,y) ) / 2;
 
-        (*(add_area->AWeights))(add.x,y) = add_area->add_weight; //the new path
-        if( add.x < (*(add_area->AWeights)).Width() )
+        (*(add_area.AWeights))(add.x,y) = add_area.add_weight; //the new path
+        if( add.x < (*(add_area.AWeights)).Width() )
         {
-            (*(add_area->AWeights))(add.x+1,y) += add_area->add_weight; //the previous least-energy path
+            (*(add_area.AWeights))(add.x+1,y) += add_area.add_weight; //the previous least-energy path
         }
     }
     return NULL;
@@ -810,7 +830,7 @@ void Add_Path( CML_color * Source, vector<pixel> * Path, CML_int * Weights, CML_
     pthread_join( add_threads[1], NULL );
     pthread_join( add_threads[2], NULL );
     pthread_join( add_threads[3], NULL );
-}
+} //end Add_Path()
 
 
 struct AddW_Params
@@ -824,14 +844,13 @@ struct AddW_Params
 
 void * AddW_Quadrant( void * area )
 {
-    AddW_Params * add_area;
-    add_area = (AddW_Params *)area;
+    AddW_Params add_area = (*((AddW_Params *)area));
 
-    for( int y = add_area->top_y; y < add_area->bot_y; y++ )
+    for( int y = add_area.top_y; y < add_area.bot_y; y++ )
     {
-        for( int x = 0; x < (*(add_area->Add1)).Width(); x++ )
+        for( int x = 0; x < (*(add_area.Add1)).Width(); x++ )
         {
-            (*(add_area->Sum))(x,y) = (*(add_area->Add1))(x,y) + (*(add_area->Add2))(x,y);
+            (*(add_area.Sum))(x,y) = (*(add_area.Add1))(x,y) + (*(add_area.Add2))(x,y);
         }
     }
     return NULL;
@@ -958,7 +977,7 @@ bool CAIR_Add( CML_color * Source, CML_int * Weights, int goal_x, double quality
         }
     }
     return true;
-}
+} //end CAIR_Add()
 
 /*****************************************************************************************
 **                                      R E M O V E                                     **
@@ -982,46 +1001,45 @@ struct Remove_Params
 //the areas are not quadrants, rather, more like strips, but I keep the name convention
 void * Remove_Quadrant( void * area )
 {
-    Remove_Params * remove_area;
-    remove_area = (Remove_Params *)area;
+    Remove_Params remove_area = (*((Remove_Params *)area));
 
-    for( int y = remove_area->top_y; y <= remove_area->bot_y; y++ )
+    for( int y = remove_area.top_y; y <= remove_area.bot_y; y++ )
     {
         //reduce each row by one, the removed pixel
-        pixel remove = (*(remove_area->Path))[y];
+        pixel remove = (*(remove_area.Path))[y];
 
         //now, bounds check the assignments
         if( (remove.x - 1) > 0 )
         {
-            if( (*(remove_area->Weights))(remove.x,y) >= 0 ) //otherwise area marked for removal, don't blend
+            if( (*(remove_area.Weights))(remove.x,y) >= 0 ) //otherwise area marked for removal, don't blend
             {
                 //average removed pixel back in
-                (*(remove_area->Source))(remove.x-1,y) = Average_Pixels( (*(remove_area->Source))(remove.x,y), (*(remove_area->Source)).Get(remove.x-1,y) );
+                (*(remove_area.Source))(remove.x-1,y) = Average_Pixels( (*(remove_area.Source))(remove.x,y), (*(remove_area.Source)).Get(remove.x-1,y) );
             }
-            (*(remove_area->Grayscale))(remove.x-1,y) = ( (*(remove_area->Grayscale))(remove.x,y) + (*(remove_area->Grayscale)).Get(remove.x-1,y) ) / 2;
-            (*(remove_area->Edge))(remove.x-1,y) = ( (*(remove_area->Edge))(remove.x,y) + (*(remove_area->Edge)).Get(remove.x-1,y) ) / 2;
+            (*(remove_area.Grayscale))(remove.x-1,y) = ( (*(remove_area.Grayscale))(remove.x,y) + (*(remove_area.Grayscale)).Get(remove.x-1,y) ) / 2;
+            (*(remove_area.Edge))(remove.x-1,y) = ( (*(remove_area.Edge))(remove.x,y) + (*(remove_area.Edge)).Get(remove.x-1,y) ) / 2;
         }
 
-        if( (remove.x + 1) < (*(remove_area->Source)).Width() )
+        if( (remove.x + 1) < (*(remove_area.Source)).Width() )
         {
-            if( (*(remove_area->Weights))(remove.x,y) >= 0 ) //otherwise area marked for removal, don't blend
+            if( (*(remove_area.Weights))(remove.x,y) >= 0 ) //otherwise area marked for removal, don't blend
             {
                 //average removed pixel back in
-                (*(remove_area->Source))(remove.x+1,y) = Average_Pixels( (*(remove_area->Source))(remove.x,y), (*(remove_area->Source)).Get(remove.x+1,y) );
+                (*(remove_area.Source))(remove.x+1,y) = Average_Pixels( (*(remove_area.Source))(remove.x,y), (*(remove_area.Source)).Get(remove.x+1,y) );
             }
-            (*(remove_area->Edge))(remove.x+1,y) = ( (*(remove_area->Edge))(remove.x,y) + (*(remove_area->Edge)).Get( remove.x+1, y ) ) / 2;
-            (*(remove_area->Grayscale))(remove.x+1,y) = ( (*(remove_area->Grayscale))(remove.x,y) + (*(remove_area->Grayscale)).Get( remove.x+1, y ) ) / 2;
+            (*(remove_area.Edge))(remove.x+1,y) = ( (*(remove_area.Edge))(remove.x,y) + (*(remove_area.Edge)).Get( remove.x+1, y ) ) / 2;
+            (*(remove_area.Grayscale))(remove.x+1,y) = ( (*(remove_area.Grayscale))(remove.x,y) + (*(remove_area.Grayscale)).Get( remove.x+1, y ) ) / 2;
         }
 
         //shift everyone over
-        (*(remove_area->Source)).Shift_Row( remove.x + 1, y, -1 );
-        (*(remove_area->Grayscale)).Shift_Row( remove.x + 1, y, -1 );
-        (*(remove_area->Weights)).Shift_Row( remove.x + 1, y, -1 );
-        (*(remove_area->Edge)).Shift_Row( remove.x + 1, y, -1 );
+        (*(remove_area.Source)).Shift_Row( remove.x + 1, y, -1 );
+        (*(remove_area.Grayscale)).Shift_Row( remove.x + 1, y, -1 );
+        (*(remove_area.Weights)).Shift_Row( remove.x + 1, y, -1 );
+        (*(remove_area.Edge)).Shift_Row( remove.x + 1, y, -1 );
 
     }
     return NULL;
-}
+} //end Remove_Quadrant()
 
 //Removes the requested path from the Edge, Weights, and the image itself.
 //Edge and the image have the path blended back into the them.
@@ -1079,7 +1097,7 @@ void Remove_Path( CML_color * Source, vector<pixel> * Path, CML_int * Weights, C
     (*Weights).Resize_Width( (*Source).Width() );
     (*Edge).Resize_Width( (*Source).Width() );
     (*Grayscale).Resize_Width( (*Source).Width() );
-}
+} //end Remove_Path()
 
 
 //Removes all requested vertical paths form the image.
@@ -1114,7 +1132,7 @@ bool CAIR_Remove( CML_color * Source, CML_int * Weights, int goal_x, double qual
         }
     }
     return true;
-}
+} //end CAIR_Remove()
 
 /*****************************************************************************************
 **                                      F R O N T E N D                                 **
@@ -1188,8 +1206,11 @@ bool CAIR( CML_color * Source, CML_int * Weights, int goal_x, int goal_y, double
         (*Weights).Transpose( &TWeights );
     }
     return true;
-}
+} //end CAIR()
 
+/*****************************************************************************************
+**                                        E X T R A S                                   **
+*****************************************************************************************/
 //Simple function that generates the grayscale image of Source and places the result in Dest.
 void CAIR_Grayscale( CML_color * Source, CML_color * Dest )
 {
@@ -1288,7 +1309,7 @@ void CAIR_V_Energy( CML_color * Source, CML_color * Dest )
             (*Dest)(x,y).alpha = 0;
         }
     }
-}
+} //end CAIR_V_Energy()
 
 //Simple function that generates the horizontal energy map of Source placing it into Dest.
 //All values are scaled down to their relative gray value. Weights are assumed all zero.
@@ -1304,18 +1325,19 @@ void CAIR_H_Energy( CML_color * Source, CML_color * Dest )
 }
 
 //Experimental automatic object removal.
-//Any area with a negative weight will be removed. This function will automatically remove that portion and
-//return the image back to its origional dimensions. It will determine which direction to remove (either width or height)
-//based on the number of negative columns and rows. This is to minimize the amount of change needed.
-void CAIR_Removal( CML_color * Source, CML_int * Weights, double quality, int add_weight, CML_color * Dest, ProgressPtr p )
+//Any area with a negative weight will be removed. This function has three modes, determined by the choice paramater.
+//AUTO will have the function count the veritcal and horizontal rows/columns and remove in the direction that has the least.
+//VERTICAL will force the function to remove all negative weights in the veritcal direction; likewise for HORIZONTAL.
+//Because some conditions may cause the function not to remove all negative weights in one pass, max_attempts lets the function
+//go through the remoal process as many times as you're willing.
+void CAIR_Removal( CML_color * Source, CML_int * Weights, double quality, CAIR_direction choice, int max_attempts, int add_weight, CML_color * Dest, ProgressPtr p )
 {
     int negative_x = 0;
     int negative_y = 0;
     CML_color Temp( 1, 1 );
     Temp = (*Source);
 
-    //one cycle may not completely elminate all negative areas, so repeat it just in case
-    do
+    for( int i = 0; i < max_attempts; i++ )
     {
         negative_x = 0;
         negative_y = 0;
@@ -1328,7 +1350,7 @@ void CAIR_Removal( CML_color * Source, CML_int * Weights, double quality, int ad
                 if( (*Weights)(x,y) < 0 )
                 {
                     negative_x++;
-                    break;
+                    break; //only breaks the inner loop
                 }
             }
         }
@@ -1346,58 +1368,45 @@ void CAIR_Removal( CML_color * Source, CML_int * Weights, double quality, int ad
             }
         }
 
-        //remove in the direction that has the least to remove
-        if( negative_y < negative_x )
+        switch( choice )
         {
-            if(!CAIR( &Temp, Weights, (*Source).Width(), (*Source).Height() - negative_y, quality, add_weight, Dest, p ))
-		return;
-            Temp = (*Dest);
-        }
-        else
-        {
-            if(!CAIR( &Temp, Weights, (*Source).Width() - negative_x, (*Source).Height(), quality, add_weight, Dest, p ))
-		return;
-            Temp = (*Dest);
-        }
-
-        //check to make sure we got everything
-        //this is just a guess that there are cases where I wouldn't get all of it
-        negative_x = 0;
-        negative_y = 0;
-
-        //count how many negative columns exist
-        for( int x = 0; x < (*Weights).Width(); x++ )
-        {
-            for( int y = 0; y < (*Weights).Height(); y++ )
+        case AUTO :
+            //remove in the direction that has the least to remove
+            if( negative_y < negative_x )
             {
-                if( (*Weights)(x,y) < 0 )
-                {
-                    negative_x++;
-                    break;
-                }
+                if(!CAIR( &Temp, Weights, Temp.Width(), Temp.Height() - negative_y, quality, add_weight, Dest, p ))
+                    return;
+                Temp = (*Dest);
             }
-        }
-
-        //count how many negative rows exist
-        for( int y = 0; y < (*Weights).Height(); y++ )
-        {
-            for( int x = 0; x < (*Weights).Width(); x++ )
+            else
             {
-                if( (*Weights)(x,y) < 0 )
-                {
-                    negative_y++;
-                    break;
-                }
+                if(!CAIR( &Temp, Weights, Temp.Width() - negative_x, Temp.Height(), quality, add_weight, Dest, p ))
+                    return;
+                Temp = (*Dest);
             }
-        }
+            break;
 
-    } while( (negative_x + negative_y) > 0 );
+        case HORIZONTAL :
+            if(!CAIR( &Temp, Weights, Temp.Width(), Temp.Height() - negative_y, quality, add_weight, Dest, p ))
+                return;
+            Temp = (*Dest);
+            break;
+
+        case VERTICAL :
+            if(!CAIR( &Temp, Weights, Temp.Width() - negative_x, Temp.Height(), quality, add_weight, Dest, p ))
+                return;
+            Temp = (*Dest);
+            break;
+        }
+    }
 
     //now expand back out to the origional
-    if(!CAIR( &Temp, Weights, (*Source).Width(), (*Source).Height(), quality, add_weight, Dest, p ))
-	return;
-}
+    CAIR( &Temp, Weights, (*Source).Width(), (*Source).Height(), quality, add_weight, Dest, p );
+} //end CAIR_Removal()
 
+/*****************************************************************************************
+**                                  C A I R _ H D                                       **
+*****************************************************************************************/
 //This works as CAIR, except here maximum quality is attempted. When removing in both directions some amount, CAIR_HD()
 //will determine which direction has the least amount of energy and then removes in that direction. This is only done
 //for removal, since enlarging will not benifit, although this function will perform addition just like CAIR().
@@ -1457,4 +1466,4 @@ void CAIR_HD( CML_color * Source, CML_int * Weights, int goal_x, int goal_y, int
     Temp = (*Dest);
     if(!CAIR( &Temp, Weights, goal_x, goal_y, 1, add_weight, Dest, p ))
 	return;
-}
+} //end CAIR_HD()

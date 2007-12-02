@@ -56,10 +56,13 @@ void CAIR_V_Energy( CML_color * Source, CML_color * Dest );
 void CAIR_H_Energy( CML_color * Source, CML_color * Dest );
 
 //Experimental automatic object removal.
-//Any area with a negative weight will be removed. This function will automatically remove that portion and
-//return the image back to its origional dimensions. It will determine which direction to remove (either width or height)
-//based on the number of negative columns and rows. This is to minimize the amount of change needed.
-void CAIR_Removal( CML_color * Source, CML_int * Weights, double quality, int add_weight, CML_color * Dest, ProgressPtr p=0 );
+//Any area with a negative weight will be removed. This function has three modes, determined by the choice paramater.
+//AUTO will have the function count the veritcal and horizontal rows/columns and remove in the direction that has the least.
+//VERTICAL will force the function to remove all negative weights in the veritcal direction; likewise for HORIZONTAL.
+//Because some conditions may cause the function not to remove all negative weights in one pass, max_attempts lets the function
+//go through the remoal process as many times as you're willing.
+enum CAIR_direction { AUTO, VERTICAL, HORIZONTAL };
+void CAIR_Removal( CML_color * Source, CML_int * Weights, double quality, CAIR_direction choice, int max_attempts, int add_weight, CML_color * Dest, ProgressPtr p=0 );
 
 //This works as CAIR, except here maximum quality is attempted. When removing in both directions some amount, CAIR_HD()
 //will determine which direction has the least amount of energy and then removes in that direction. This is only done

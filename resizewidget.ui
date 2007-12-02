@@ -5,8 +5,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>234</width>
-    <height>531</height>
+    <width>279</width>
+    <height>676</height>
    </rect>
   </property>
   <property name="sizePolicy" >
@@ -20,44 +20,14 @@
   <property name="windowTitle" >
    <string>Form</string>
   </property>
-  <layout class="QGridLayout" >
+  <layout class="QVBoxLayout" >
    <property name="margin" >
     <number>9</number>
    </property>
    <property name="spacing" >
     <number>6</number>
    </property>
-   <item row="3" column="0" >
-    <spacer>
-     <property name="orientation" >
-      <enum>Qt::Horizontal</enum>
-     </property>
-     <property name="sizeHint" >
-      <size>
-       <width>40</width>
-       <height>20</height>
-      </size>
-     </property>
-    </spacer>
-   </item>
-   <item row="3" column="1" >
-    <widget class="QPushButton" name="removeButton" >
-     <property name="text" >
-      <string>Re&amp;move Marked</string>
-     </property>
-    </widget>
-   </item>
-   <item row="3" column="2" >
-    <widget class="QPushButton" name="resizeButton" >
-     <property name="text" >
-      <string>&amp;Resize</string>
-     </property>
-     <property name="default" >
-      <bool>true</bool>
-     </property>
-    </widget>
-   </item>
-   <item row="0" column="0" colspan="3" >
+   <item>
     <widget class="QGroupBox" name="groupBox_2" >
      <property name="title" >
       <string>Retain/Remove</string>
@@ -69,35 +39,131 @@
       <property name="spacing" >
        <number>6</number>
       </property>
-      <item row="5" column="0" colspan="2" >
-       <layout class="QHBoxLayout" >
-        <property name="margin" >
-         <number>0</number>
+      <item row="6" column="0" colspan="2" >
+       <widget class="QGroupBox" name="removeGroup" >
+        <property name="enabled" >
+         <bool>true</bool>
         </property>
-        <property name="spacing" >
-         <number>6</number>
+        <property name="title" >
+         <string>Resize to Remove Marked</string>
         </property>
-        <item>
-         <spacer>
-          <property name="orientation" >
-           <enum>Qt::Horizontal</enum>
-          </property>
-          <property name="sizeHint" >
-           <size>
-            <width>40</width>
-            <height>20</height>
-           </size>
-          </property>
-         </spacer>
-        </item>
-        <item>
-         <widget class="QPushButton" name="clearButton" >
-          <property name="text" >
-           <string>&amp;Clear Marked Area</string>
-          </property>
-         </widget>
-        </item>
-       </layout>
+        <layout class="QGridLayout" >
+         <property name="margin" >
+          <number>9</number>
+         </property>
+         <property name="spacing" >
+          <number>6</number>
+         </property>
+         <item row="0" column="1" >
+          <widget class="QComboBox" name="removeMode" >
+           <property name="currentIndex" >
+            <number>0</number>
+           </property>
+           <property name="maxVisibleItems" >
+            <number>3</number>
+           </property>
+           <item>
+            <property name="text" >
+             <string>Automatic</string>
+            </property>
+           </item>
+           <item>
+            <property name="text" >
+             <string>Vertical</string>
+            </property>
+           </item>
+           <item>
+            <property name="text" >
+             <string>Horizontal</string>
+            </property>
+           </item>
+          </widget>
+         </item>
+         <item row="0" column="0" >
+          <widget class="QLabel" name="label_5" >
+           <property name="text" >
+            <string>Mode:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="0" colspan="2" >
+          <layout class="QHBoxLayout" >
+           <property name="margin" >
+            <number>0</number>
+           </property>
+           <property name="spacing" >
+            <number>6</number>
+           </property>
+           <item>
+            <spacer>
+             <property name="orientation" >
+              <enum>Qt::Horizontal</enum>
+             </property>
+             <property name="sizeHint" >
+              <size>
+               <width>40</width>
+               <height>20</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+           <item>
+            <widget class="QPushButton" name="removeButton" >
+             <property name="text" >
+              <string>Re&amp;move</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item row="1" column="0" colspan="2" >
+          <widget class="QCheckBox" name="iterateCheckBox" >
+           <property name="text" >
+            <string>Iterate Until Red Removed</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item row="1" column="0" colspan="2" >
+       <widget class="QRadioButton" name="removeRadio" >
+        <property name="text" >
+         <string>Mark area for removal</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0" colspan="2" >
+       <widget class="QRadioButton" name="clearRadio" >
+        <property name="text" >
+         <string>Clear marked area</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="1" >
+       <widget class="QSlider" name="brushSizeSlider" >
+        <property name="minimum" >
+         <number>3</number>
+        </property>
+        <property name="maximum" >
+         <number>63</number>
+        </property>
+        <property name="singleStep" >
+         <number>4</number>
+        </property>
+        <property name="pageStep" >
+         <number>8</number>
+        </property>
+        <property name="value" >
+         <number>15</number>
+        </property>
+        <property name="sliderPosition" >
+         <number>15</number>
+        </property>
+        <property name="orientation" >
+         <enum>Qt::Horizontal</enum>
+        </property>
+       </widget>
       </item>
       <item row="4" column="1" >
        <widget class="QSlider" name="brushWeightSlider" >
@@ -135,30 +201,35 @@
         </property>
        </widget>
       </item>
-      <item row="3" column="1" >
-       <widget class="QSlider" name="brushSizeSlider" >
-        <property name="minimum" >
-         <number>3</number>
+      <item row="5" column="0" colspan="2" >
+       <layout class="QHBoxLayout" >
+        <property name="margin" >
+         <number>0</number>
         </property>
-        <property name="maximum" >
-         <number>63</number>
+        <property name="spacing" >
+         <number>6</number>
         </property>
-        <property name="singleStep" >
-         <number>4</number>
-        </property>
-        <property name="pageStep" >
-         <number>8</number>
-        </property>
-        <property name="value" >
-         <number>15</number>
-        </property>
-        <property name="sliderPosition" >
-         <number>15</number>
-        </property>
-        <property name="orientation" >
-         <enum>Qt::Horizontal</enum>
-        </property>
-       </widget>
+        <item>
+         <spacer>
+          <property name="orientation" >
+           <enum>Qt::Horizontal</enum>
+          </property>
+          <property name="sizeHint" >
+           <size>
+            <width>40</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+        <item>
+         <widget class="QPushButton" name="clearButton" >
+          <property name="text" >
+           <string>&amp;Clear Marked Area</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
       </item>
       <item row="0" column="0" colspan="2" >
        <widget class="QRadioButton" name="retainRadio" >
@@ -170,86 +241,10 @@
         </property>
        </widget>
       </item>
-      <item row="1" column="0" colspan="2" >
-       <widget class="QRadioButton" name="removeRadio" >
-        <property name="text" >
-         <string>Mark area for removal</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="0" colspan="2" >
-       <widget class="QRadioButton" name="clearRadio" >
-        <property name="text" >
-         <string>Clear marked area</string>
-        </property>
-       </widget>
-      </item>
      </layout>
     </widget>
    </item>
-   <item row="4" column="1" >
-    <spacer>
-     <property name="orientation" >
-      <enum>Qt::Vertical</enum>
-     </property>
-     <property name="sizeHint" >
-      <size>
-       <width>20</width>
-       <height>40</height>
-      </size>
-     </property>
-    </spacer>
-   </item>
-   <item row="2" column="0" colspan="3" >
-    <widget class="QGroupBox" name="groupBox" >
-     <property name="title" >
-      <string>Resize Dimensions</string>
-     </property>
-     <layout class="QGridLayout" >
-      <property name="margin" >
-       <number>9</number>
-      </property>
-      <property name="spacing" >
-       <number>6</number>
-      </property>
-      <item row="1" column="1" >
-       <widget class="QLineEdit" name="heightLineEdit" />
-      </item>
-      <item row="0" column="1" >
-       <widget class="QLineEdit" name="widthLineEdit" />
-      </item>
-      <item row="1" column="2" >
-       <widget class="QLabel" name="pixel2Label" >
-        <property name="text" >
-         <string>pixels</string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="2" >
-       <widget class="QLabel" name="pixel1Label" >
-        <property name="text" >
-         <string>pixels</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="0" >
-       <widget class="QLabel" name="heightLabel" >
-        <property name="text" >
-         <string>Height:</string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="0" >
-       <widget class="QLabel" name="widthLabel" >
-        <property name="text" >
-         <string>Width:</string>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item row="1" column="0" colspan="3" >
+   <item>
     <widget class="QGroupBox" name="groupBox_3" >
      <property name="title" >
       <string>Other Parameters</string>
@@ -261,14 +256,42 @@
       <property name="spacing" >
        <number>6</number>
       </property>
-      <item row="0" column="0" >
-       <widget class="QLabel" name="label_3" >
+      <item row="3" column="2" >
+       <widget class="QLineEdit" name="weightScaleLineEdit" >
         <property name="text" >
-         <string>Quality:</string>
+         <string>5000</string>
         </property>
        </widget>
       </item>
-      <item row="0" column="1" colspan="3" >
+      <item row="3" column="0" colspan="2" >
+       <widget class="QLabel" name="weightScaleLabel" >
+        <property name="text" >
+         <string>Weight Scale:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="2" >
+       <widget class="QLineEdit" name="addWeightLineEdit" >
+        <property name="text" >
+         <string>500</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0" colspan="2" >
+       <widget class="QLabel" name="addWeightLabel" >
+        <property name="text" >
+         <string>Add Weight:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0" colspan="3" >
+       <widget class="QCheckBox" name="hdCheckBox" >
+        <property name="text" >
+         <string>HD Quality</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1" colspan="2" >
        <widget class="QSlider" name="qualitySlider" >
         <property name="minimum" >
          <number>1</number>
@@ -290,43 +313,110 @@
         </property>
        </widget>
       </item>
-      <item row="1" column="0" colspan="4" >
-       <widget class="QCheckBox" name="hdCheckBox" >
+      <item row="0" column="0" >
+       <widget class="QLabel" name="label_3" >
         <property name="text" >
-         <string>HD Quality</string>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="0" colspan="3" >
-       <widget class="QLabel" name="weightScaleLabel" >
-        <property name="text" >
-         <string>Weight Scale:</string>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="3" >
-       <widget class="QLineEdit" name="weightScaleLineEdit" >
-        <property name="text" >
-         <string>5000</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="3" >
-       <widget class="QLineEdit" name="addWeightLineEdit" >
-        <property name="text" >
-         <string>500</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="0" colspan="3" >
-       <widget class="QLabel" name="addWeightLabel" >
-        <property name="text" >
-         <string>Add Weight:</string>
+         <string>Quality:</string>
         </property>
        </widget>
       </item>
      </layout>
     </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="groupBox" >
+     <property name="title" >
+      <string>Resize Dimensions</string>
+     </property>
+     <layout class="QGridLayout" >
+      <property name="margin" >
+       <number>9</number>
+      </property>
+      <property name="spacing" >
+       <number>6</number>
+      </property>
+      <item row="2" column="0" colspan="3" >
+       <layout class="QHBoxLayout" >
+        <property name="margin" >
+         <number>0</number>
+        </property>
+        <property name="spacing" >
+         <number>6</number>
+        </property>
+        <item>
+         <spacer>
+          <property name="orientation" >
+           <enum>Qt::Horizontal</enum>
+          </property>
+          <property name="sizeHint" >
+           <size>
+            <width>40</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+        <item>
+         <widget class="QPushButton" name="resizeButton" >
+          <property name="text" >
+           <string>&amp;Resize</string>
+          </property>
+          <property name="default" >
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item row="1" column="2" >
+       <widget class="QLabel" name="pixel2Label" >
+        <property name="text" >
+         <string>pixels</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1" >
+       <widget class="QLineEdit" name="heightLineEdit" />
+      </item>
+      <item row="1" column="0" >
+       <widget class="QLabel" name="heightLabel" >
+        <property name="text" >
+         <string>Height:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="2" >
+       <widget class="QLabel" name="pixel1Label" >
+        <property name="text" >
+         <string>pixels</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1" >
+       <widget class="QLineEdit" name="widthLineEdit" />
+      </item>
+      <item row="0" column="0" >
+       <widget class="QLabel" name="widthLabel" >
+        <property name="text" >
+         <string>Width:</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <spacer>
+     <property name="orientation" >
+      <enum>Qt::Vertical</enum>
+     </property>
+     <property name="sizeHint" >
+      <size>
+       <width>20</width>
+       <height>40</height>
+      </size>
+     </property>
+    </spacer>
    </item>
   </layout>
  </widget>
@@ -392,22 +482,6 @@
   <connection>
    <sender>hdCheckBox</sender>
    <signal>toggled(bool)</signal>
-   <receiver>removeButton</receiver>
-   <slot>setDisabled(bool)</slot>
-   <hints>
-    <hint type="sourcelabel" >
-     <x>76</x>
-     <y>278</y>
-    </hint>
-    <hint type="destinationlabel" >
-     <x>51</x>
-     <y>480</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>hdCheckBox</sender>
-   <signal>toggled(bool)</signal>
    <receiver>label_3</receiver>
    <slot>setDisabled(bool)</slot>
    <hints>
@@ -418,6 +492,22 @@
     <hint type="destinationlabel" >
      <x>31</x>
      <y>259</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>hdCheckBox</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>removeGroup</receiver>
+   <slot>setDisabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel" >
+     <x>118</x>
+     <y>275</y>
+    </hint>
+    <hint type="destinationlabel" >
+     <x>118</x>
+     <y>430</y>
     </hint>
    </hints>
   </connection>

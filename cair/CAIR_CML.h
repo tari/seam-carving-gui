@@ -27,7 +27,6 @@
 //	more flexable, but adds another small step.
 
 #include <limits>
-#include <cstring>
 
 using namespace std;
 

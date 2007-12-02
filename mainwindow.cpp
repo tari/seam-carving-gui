@@ -27,6 +27,9 @@
 #include "cair/CAIR.h"
 #include <vector>
 
+//Decent MAX_ATTEMPTS value
+#define MAX_ATTEMPTS 5
+
 QProgressDialog *gProg;
 int updateCallback(int)
 {
@@ -123,11 +126,11 @@ MainWindow::MainWindow()
   _resizeDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
   QWidget *holderWidget = new DockWrapper(_resizeDock);
   _resizeWidget.setupUi(holderWidget);
-  QIntValidator *validtor = new QIntValidator(1, 2000000, holderWidget);
-  _resizeWidget.widthLineEdit->setValidator(validtor);
-  _resizeWidget.heightLineEdit->setValidator(validtor);
-  _resizeWidget.addWeightLineEdit->setValidator(validtor);
-  _resizeWidget.weightScaleLineEdit->setValidator(validtor);
+  QIntValidator *validator = new QIntValidator(1, 2000000, holderWidget);
+  _resizeWidget.widthLineEdit->setValidator(validator);
+  _resizeWidget.heightLineEdit->setValidator(validator);
+  _resizeWidget.addWeightLineEdit->setValidator(validator);
+  _resizeWidget.weightScaleLineEdit->setValidator(validator);
   connect(_resizeWidget.resizeButton, SIGNAL(clicked()), this, SLOT(resizeButtonClicked()));
   connect(_resizeWidget.removeButton, SIGNAL(clicked()), this, SLOT(removeButtonClicked()));
   connect(_resizeWidget.clearButton, SIGNAL(clicked()), this, SLOT(clearMask()));
@@ -326,6 +329,12 @@ void MainWindow::cairRemove()
   int width = _img.width();
   int height = _img.height();
   int weight_scale = (int)(_resizeWidget.weightScaleLineEdit->text().toInt() * (_resizeWidget.brushWeightSlider->value() / 100.0));
+  int attempts = _resizeWidget.iterateCheckBox->isChecked() ? MAX_ATTEMPTS : 1;
+  CAIR_direction choice = AUTO;
+  if(_resizeWidget.removeMode->currentIndex() == 1)
+    choice = VERTICAL;
+  else if(_resizeWidget.removeMode->currentIndex() == 2)
+    choice = HORIZONTAL;
 
   //Transfer the image over to cair image format.
   CML_color source(width, height);
@@ -377,14 +386,26 @@ void MainWindow::cairRemove()
     }
   }
 
-  if( negative_x > negative_y )
+  switch( choice )
   {
-    total_time = negative_y * 2; //remove, then add back. This MAY not totally work, thats why it's experimental
+  case AUTO :
+    if( negative_x > negative_y )
+    {
+      total_time = negative_y * 2 * attempts;
+    }
+    else
+    {
+      total_time = negative_x * 2 * attempts;
+    }
+    break;
+  case HORIZONTAL :
+    total_time = negative_y * 2 * attempts;
+    break;
+  case VERTICAL :
+    total_time = negative_x * 2 * attempts;
+    break;
   }
-  else
-  {
-    total_time = negative_x * 2;
-  }
+
   if( total_time == 0 )
   {
     QMessageBox::information(this, tr("Seam Carving GUI"),
@@ -399,7 +420,7 @@ void MainWindow::cairRemove()
   //Call CAIR
   double quality = _resizeWidget.qualitySlider->value() / 100.0;
   int add_weight = _resizeWidget.addWeightLineEdit->text().toInt();
-  CAIR_Removal( &source, &weights, quality, add_weight, &dest, updateCallback );
+  CAIR_Removal( &source, &weights, quality, choice, attempts, add_weight, &dest, updateCallback );
   if(prog.wasCanceled())
     return;
   QImage newImg = CMLtoQImage(dest);
