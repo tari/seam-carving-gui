@@ -29,3 +29,7 @@ install_name_tool -change QtCore.framework/Versions/4/QtCore @executable_path/..
 install_name_tool -change QtGui.framework/Versions/4/QtGui @executable_path/../Frameworks/QtGui.framework/Versions/4.0/QtGui $APPDIR/Contents/plugins/imageformats/libqgif.dylib
 install_name_tool -change QtCore.framework/Versions/4/QtCore @executable_path/../Frameworks/QtCore.framework/Versions/4.0/QtCore $APPDIR/Contents/plugins/imageformats/libqtiff.dylib
 install_name_tool -change QtGui.framework/Versions/4/QtGui @executable_path/../Frameworks/QtGui.framework/Versions/4.0/QtGui $APPDIR/Contents/plugins/imageformats/libqtiff.dylib
+
+#Clean out Include directores
+rm -rf $APPDIR/Contents/Frameworks/QtCore.framework/Versions/4/Headers
+rm -rf $APPDIR/Contents/Frameworks/QtGui.framework/Versions/4/Headers
