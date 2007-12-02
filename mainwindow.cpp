@@ -135,6 +135,7 @@ MainWindow::MainWindow()
   connect(_resizeWidget.removeButton, SIGNAL(clicked()), this, SLOT(removeButtonClicked()));
   connect(_resizeWidget.clearButton, SIGNAL(clicked()), this, SLOT(clearMask()));
   connect(_resizeWidget.brushSizeSlider, SIGNAL(sliderMoved(int)), this, SLOT(updateCursor()));
+  connect(_resizeWidget.edgeDetector, SIGNAL(activated(int)), this, SLOT(updateView()));
   _resizeDock->setWidget(holderWidget);
   holderWidget->resize(50,50);
   addDockWidget(Qt::RightDockWidgetArea, _resizeDock);
@@ -152,11 +153,20 @@ MainWindow::MainWindow()
     "Enable \"High Definition\" mode. This mode is useful when decreasing the\n"
     "dimensions of an image in both dimensions and produces somewhat better\n"
     "results at the cost of slower performance.");
+  QString iterateToolTip = tr(
+    "Under some circumstances the remove algorithm leave some red marked areas\n"
+    "on the image, this choice will re-run the remove algorithm five times\n"
+    "which should be sufficient to remove any areas marked for removal.");
+  QString removeToolTip = tr(
+    "Resize the image in one dimension to remove all the areas marked for\n"
+    "removal and then resize the image back to its original dimensions.");
     
   _resizeWidget.addWeightLabel->setToolTip(addWeightToolTip);
   _resizeWidget.addWeightLineEdit->setToolTip(addWeightToolTip);
   _resizeWidget.weightScaleLabel->setToolTip(weightScaleToolTip);
   _resizeWidget.weightScaleLineEdit->setToolTip(weightScaleToolTip);
+  _resizeWidget.iterateCheckBox->setToolTip(iterateToolTip);
+  _resizeWidget.removeButton->setToolTip(removeToolTip);
   _resizeWidget.hdCheckBox->setToolTip(hdToolTip);
 
   resize(700, 400);
@@ -330,6 +340,15 @@ void MainWindow::cairRemove()
   int height = _img.height();
   int weight_scale = (int)(_resizeWidget.weightScaleLineEdit->text().toInt() * (_resizeWidget.brushWeightSlider->value() / 100.0));
   int attempts = _resizeWidget.iterateCheckBox->isChecked() ? MAX_ATTEMPTS : 1;
+  CAIR_convolution conv = V1;
+  switch( _resizeWidget.edgeDetector->currentIndex() )
+  {
+    case 0 : conv = V1; break;
+    case 1 : conv = V_SQUARE; break;
+    case 2 : conv = PREWITT; break;
+    case 3 : conv = SOBEL; break;
+    case 4 : conv = LAPLACIAN; break;
+  }
   CAIR_direction choice = AUTO;
   if(_resizeWidget.removeMode->currentIndex() == 1)
     choice = VERTICAL;
@@ -418,9 +437,8 @@ void MainWindow::cairRemove()
   qApp->processEvents();
 
   //Call CAIR
-  double quality = _resizeWidget.qualitySlider->value() / 100.0;
   int add_weight = _resizeWidget.addWeightLineEdit->text().toInt();
-  CAIR_Removal( &source, &weights, quality, choice, attempts, add_weight, &dest, updateCallback );
+  CAIR_Removal( &source, &weights, choice, attempts, add_weight, conv, &dest, updateCallback );
   if(prog.wasCanceled())
     return;
   QImage newImg = CMLtoQImage(dest);
@@ -443,6 +461,8 @@ void MainWindow::cairRemove()
   _maskPix = QPixmap::fromImage(maskImg);
   _maskItem->setPixmap(_maskPix);
   _scaleFactor = 1.0;
+  _resizeWidget.heightLineEdit->setText(QString::number(_img.height()));  
+  _resizeWidget.widthLineEdit->setText(QString::number(_img.width()));
 }
 
 void MainWindow::cairResize(int newWidth, int newHeight)
@@ -450,6 +470,15 @@ void MainWindow::cairResize(int newWidth, int newHeight)
   int width = _img.width();
   int height = _img.height();
   int weight_scale = (int)(_resizeWidget.weightScaleLineEdit->text().toInt() * (_resizeWidget.brushWeightSlider->value() / 100.0));
+  CAIR_convolution conv = V1;
+  switch( _resizeWidget.edgeDetector->currentIndex() )
+  {
+    case 0 : conv = V1; break;
+    case 1 : conv = V_SQUARE; break;
+    case 2 : conv = PREWITT; break;
+    case 3 : conv = SOBEL; break;
+    case 4 : conv = LAPLACIAN; break;
+  }
   if(newWidth < 1 || newHeight < 1)
   {
     QMessageBox::information(this, tr("Seam Carving GUI"),
@@ -485,15 +514,14 @@ void MainWindow::cairResize(int newWidth, int newHeight)
     }
   }
   //Call CAIR
-  double quality = _resizeWidget.qualitySlider->value() / 100.0;
   int add_weight = _resizeWidget.addWeightLineEdit->text().toInt();
   if( !_resizeWidget.hdCheckBox->isChecked() )
   {
-    CAIR( &source, &weights, newWidth, newHeight, quality, add_weight, &dest, updateCallback );
+    CAIR( &source, &weights, newWidth, newHeight, add_weight, conv, &dest, updateCallback );
   }
   else
   {
-    CAIR_HD( &source, &weights, newWidth, newHeight, add_weight, &dest, updateCallback );
+    CAIR_HD( &source, &weights, newWidth, newHeight, add_weight, conv, &dest, updateCallback );
   }
   if(prog.wasCanceled())
     return;
@@ -602,15 +630,29 @@ void MainWindow::changeView(QAction *view)
   CML_color source(_img.width(), _img.height());
   CML_color dest(_img.width(), _img.height());
   QImagetoCML(_img,source);
+  CAIR_convolution conv = V1;
+  switch( _resizeWidget.edgeDetector->currentIndex() )
+  {
+    case 0 : conv = V1; break;
+    case 1 : conv = V_SQUARE; break;
+    case 2 : conv = PREWITT; break;
+    case 3 : conv = SOBEL; break;
+    case 4 : conv = LAPLACIAN; break;
+  }
   if(view == _viewGreyscale)
     CAIR_Grayscale( &source, &dest );
   if(view == _viewEdge)
-    CAIR_Edge( &source, &dest );
+    CAIR_Edge( &source, conv, &dest );
   if(view == _viewVEnergy)
-    CAIR_V_Energy( &source, &dest );
+    CAIR_V_Energy( &source, conv, &dest );
   if(view == _viewHEnergy)
-    CAIR_H_Energy( &source, &dest );
+    CAIR_H_Energy( &source, conv, &dest );
   _imgItem->setPixmap(QPixmap::fromImage(CMLtoQImage(dest)));
+}
+
+void MainWindow::updateView()
+{
+  changeView(_viewGroup->checkedAction());
 }
 
 void MainWindow::updateCursor()

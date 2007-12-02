@@ -5,8 +5,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>279</width>
-    <height>676</height>
+    <width>314</width>
+    <height>669</height>
    </rect>
   </property>
   <property name="sizePolicy" >
@@ -32,20 +32,150 @@
      <property name="title" >
       <string>Retain/Remove</string>
      </property>
-     <layout class="QGridLayout" >
+     <layout class="QVBoxLayout" >
       <property name="margin" >
-       <number>9</number>
+       <number>6</number>
       </property>
       <property name="spacing" >
        <number>6</number>
       </property>
-      <item row="6" column="0" colspan="2" >
+      <item>
+       <widget class="QGroupBox" name="groupBox_4" >
+        <property name="title" >
+         <string>Mark Areas with Mouse</string>
+        </property>
+        <layout class="QGridLayout" >
+         <property name="margin" >
+          <number>9</number>
+         </property>
+         <property name="spacing" >
+          <number>6</number>
+         </property>
+         <item row="3" column="2" >
+          <widget class="QSlider" name="brushSizeSlider" >
+           <property name="minimum" >
+            <number>3</number>
+           </property>
+           <property name="maximum" >
+            <number>63</number>
+           </property>
+           <property name="singleStep" >
+            <number>4</number>
+           </property>
+           <property name="pageStep" >
+            <number>8</number>
+           </property>
+           <property name="value" >
+            <number>15</number>
+           </property>
+           <property name="sliderPosition" >
+            <number>15</number>
+           </property>
+           <property name="orientation" >
+            <enum>Qt::Horizontal</enum>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="0" colspan="3" >
+          <widget class="QRadioButton" name="retainRadio" >
+           <property name="text" >
+            <string>Mark area for retaining</string>
+           </property>
+           <property name="checked" >
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="0" >
+          <widget class="QLabel" name="label_2" >
+           <property name="text" >
+            <string>Brush Weight:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="0" colspan="2" >
+          <widget class="QLabel" name="label" >
+           <property name="text" >
+            <string>Brush Size:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="0" colspan="3" >
+          <widget class="QRadioButton" name="removeRadio" >
+           <property name="text" >
+            <string>Mark area for removal</string>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="1" colspan="2" >
+          <widget class="QSlider" name="brushWeightSlider" >
+           <property name="minimum" >
+            <number>1</number>
+           </property>
+           <property name="maximum" >
+            <number>100</number>
+           </property>
+           <property name="singleStep" >
+            <number>5</number>
+           </property>
+           <property name="pageStep" >
+            <number>20</number>
+           </property>
+           <property name="value" >
+            <number>100</number>
+           </property>
+           <property name="orientation" >
+            <enum>Qt::Horizontal</enum>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="0" colspan="3" >
+          <widget class="QRadioButton" name="clearRadio" >
+           <property name="text" >
+            <string>Clear marked area</string>
+           </property>
+          </widget>
+         </item>
+         <item row="5" column="0" colspan="3" >
+          <layout class="QHBoxLayout" >
+           <property name="margin" >
+            <number>0</number>
+           </property>
+           <property name="spacing" >
+            <number>6</number>
+           </property>
+           <item>
+            <spacer>
+             <property name="orientation" >
+              <enum>Qt::Horizontal</enum>
+             </property>
+             <property name="sizeHint" >
+              <size>
+               <width>40</width>
+               <height>20</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+           <item>
+            <widget class="QPushButton" name="clearButton" >
+             <property name="text" >
+              <string>&amp;Clear Marked Area</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item>
        <widget class="QGroupBox" name="removeGroup" >
         <property name="enabled" >
          <bool>true</bool>
         </property>
         <property name="title" >
-         <string>Resize to Remove Marked</string>
+         <string>Remove Marked Areas</string>
         </property>
         <layout class="QGridLayout" >
          <property name="margin" >
@@ -119,126 +249,11 @@
          <item row="1" column="0" colspan="2" >
           <widget class="QCheckBox" name="iterateCheckBox" >
            <property name="text" >
-            <string>Iterate Until Red Removed</string>
+            <string>Iterate Until All Marked Removed</string>
            </property>
           </widget>
          </item>
         </layout>
-       </widget>
-      </item>
-      <item row="1" column="0" colspan="2" >
-       <widget class="QRadioButton" name="removeRadio" >
-        <property name="text" >
-         <string>Mark area for removal</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="0" colspan="2" >
-       <widget class="QRadioButton" name="clearRadio" >
-        <property name="text" >
-         <string>Clear marked area</string>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="1" >
-       <widget class="QSlider" name="brushSizeSlider" >
-        <property name="minimum" >
-         <number>3</number>
-        </property>
-        <property name="maximum" >
-         <number>63</number>
-        </property>
-        <property name="singleStep" >
-         <number>4</number>
-        </property>
-        <property name="pageStep" >
-         <number>8</number>
-        </property>
-        <property name="value" >
-         <number>15</number>
-        </property>
-        <property name="sliderPosition" >
-         <number>15</number>
-        </property>
-        <property name="orientation" >
-         <enum>Qt::Horizontal</enum>
-        </property>
-       </widget>
-      </item>
-      <item row="4" column="1" >
-       <widget class="QSlider" name="brushWeightSlider" >
-        <property name="minimum" >
-         <number>1</number>
-        </property>
-        <property name="maximum" >
-         <number>100</number>
-        </property>
-        <property name="singleStep" >
-         <number>5</number>
-        </property>
-        <property name="pageStep" >
-         <number>20</number>
-        </property>
-        <property name="value" >
-         <number>100</number>
-        </property>
-        <property name="orientation" >
-         <enum>Qt::Horizontal</enum>
-        </property>
-       </widget>
-      </item>
-      <item row="4" column="0" >
-       <widget class="QLabel" name="label_2" >
-        <property name="text" >
-         <string>Brush Weight:</string>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="0" >
-       <widget class="QLabel" name="label" >
-        <property name="text" >
-         <string>Brush Size:</string>
-        </property>
-       </widget>
-      </item>
-      <item row="5" column="0" colspan="2" >
-       <layout class="QHBoxLayout" >
-        <property name="margin" >
-         <number>0</number>
-        </property>
-        <property name="spacing" >
-         <number>6</number>
-        </property>
-        <item>
-         <spacer>
-          <property name="orientation" >
-           <enum>Qt::Horizontal</enum>
-          </property>
-          <property name="sizeHint" >
-           <size>
-            <width>40</width>
-            <height>20</height>
-           </size>
-          </property>
-         </spacer>
-        </item>
-        <item>
-         <widget class="QPushButton" name="clearButton" >
-          <property name="text" >
-           <string>&amp;Clear Marked Area</string>
-          </property>
-         </widget>
-        </item>
-       </layout>
-      </item>
-      <item row="0" column="0" colspan="2" >
-       <widget class="QRadioButton" name="retainRadio" >
-        <property name="text" >
-         <string>Mark area for retaining</string>
-        </property>
-        <property name="checked" >
-         <bool>true</bool>
-        </property>
        </widget>
       </item>
      </layout>
@@ -251,72 +266,79 @@
      </property>
      <layout class="QGridLayout" >
       <property name="margin" >
-       <number>9</number>
+       <number>6</number>
       </property>
       <property name="spacing" >
        <number>6</number>
       </property>
-      <item row="3" column="2" >
-       <widget class="QLineEdit" name="weightScaleLineEdit" >
+      <item row="0" column="0" >
+       <widget class="QLabel" name="convLabel" >
         <property name="text" >
-         <string>5000</string>
+         <string>Edge Detector:</string>
         </property>
        </widget>
       </item>
-      <item row="3" column="0" colspan="2" >
-       <widget class="QLabel" name="weightScaleLabel" >
-        <property name="text" >
-         <string>Weight Scale:</string>
-        </property>
+      <item row="0" column="1" >
+       <widget class="QComboBox" name="edgeDetector" >
+        <item>
+         <property name="text" >
+          <string>V1</string>
+         </property>
+        </item>
+        <item>
+         <property name="text" >
+          <string>V_SQUARE</string>
+         </property>
+        </item>
+        <item>
+         <property name="text" >
+          <string>Prewitt</string>
+         </property>
+        </item>
+        <item>
+         <property name="text" >
+          <string>Sobel</string>
+         </property>
+        </item>
+        <item>
+         <property name="text" >
+          <string>Laplacian</string>
+         </property>
+        </item>
        </widget>
       </item>
-      <item row="2" column="2" >
-       <widget class="QLineEdit" name="addWeightLineEdit" >
-        <property name="text" >
-         <string>500</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="0" colspan="2" >
-       <widget class="QLabel" name="addWeightLabel" >
-        <property name="text" >
-         <string>Add Weight:</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="0" colspan="3" >
+      <item row="1" column="0" colspan="2" >
        <widget class="QCheckBox" name="hdCheckBox" >
         <property name="text" >
          <string>HD Quality</string>
         </property>
        </widget>
       </item>
-      <item row="0" column="1" colspan="2" >
-       <widget class="QSlider" name="qualitySlider" >
-        <property name="minimum" >
-         <number>1</number>
-        </property>
-        <property name="maximum" >
-         <number>100</number>
-        </property>
-        <property name="singleStep" >
-         <number>5</number>
-        </property>
-        <property name="pageStep" >
-         <number>20</number>
-        </property>
-        <property name="value" >
-         <number>50</number>
-        </property>
-        <property name="orientation" >
-         <enum>Qt::Horizontal</enum>
+      <item row="2" column="0" >
+       <widget class="QLabel" name="addWeightLabel" >
+        <property name="text" >
+         <string>Add Weight:</string>
         </property>
        </widget>
       </item>
-      <item row="0" column="0" >
-       <widget class="QLabel" name="label_3" >
+      <item row="2" column="1" >
+       <widget class="QLineEdit" name="addWeightLineEdit" >
         <property name="text" >
-         <string>Quality:</string>
+         <string>500</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="0" >
+       <widget class="QLabel" name="weightScaleLabel" >
+        <property name="text" >
+         <string>Weight Scale:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="1" >
+       <widget class="QLineEdit" name="weightScaleLineEdit" >
+        <property name="text" >
+         <string>5000</string>
         </property>
        </widget>
       </item>
@@ -330,7 +352,7 @@
      </property>
      <layout class="QGridLayout" >
       <property name="margin" >
-       <number>9</number>
+       <number>6</number>
       </property>
       <property name="spacing" >
        <number>6</number>
@@ -460,38 +482,6 @@
     <hint type="destinationlabel" >
      <x>224</x>
      <y>495</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>hdCheckBox</sender>
-   <signal>toggled(bool)</signal>
-   <receiver>qualitySlider</receiver>
-   <slot>setDisabled(bool)</slot>
-   <hints>
-    <hint type="sourcelabel" >
-     <x>54</x>
-     <y>278</y>
-    </hint>
-    <hint type="destinationlabel" >
-     <x>102</x>
-     <y>256</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>hdCheckBox</sender>
-   <signal>toggled(bool)</signal>
-   <receiver>label_3</receiver>
-   <slot>setDisabled(bool)</slot>
-   <hints>
-    <hint type="sourcelabel" >
-     <x>95</x>
-     <y>279</y>
-    </hint>
-    <hint type="destinationlabel" >
-     <x>31</x>
-     <y>259</y>
     </hint>
    </hints>
   </connection>

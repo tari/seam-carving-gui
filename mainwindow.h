@@ -53,6 +53,7 @@ private slots:
   void normalSize();
   void about();
   void changeView(QAction* view);
+  void updateView();
   void updateCursor();
 
 private:

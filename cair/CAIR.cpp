@@ -18,11 +18,21 @@
 //This is to be released under the GPLv3 with no implied warranty of any kind.
 
 //TODO (maybe):
+//    - Figure out the safety checks in Remove_Path() and Add_Path()
+//    - Re-optimize Energy_Map() to preserve unchanged portions.
 //    - Try doing Poisson image reconstruction instead of the averaging technique in CAIR_HD() if I can figure it out (see the ReadMe).
 //    - Setup Energy_Map() to accept up to 4 threads, which may or may not increase performance.
 //    - Abstract out pthreads into macros allowing for mutliple thread types to be used (ugh, not for a while at least)
 //    - Maybe someday push CAIR into OO land and create a class out of it.
 //
+//CAIR v2.11 Changelog: (The Super-Speedy Jib version)
+//  - 40% speed boost across the board with "high quality"
+//  - Remove_Path() and Add_Path() directly recalculate only changed edge values. This gives the speed of low quality while
+//      maintaining high quality output. Because of this, the quality factor is no longer used and has been removed. (Special thanks to Jib)
+//  - Grayscale values during a resize are now properly recalculated for better accuracy.
+//  - main() has undergone a major overhaul. Now most operations are accessable from the CLI. (Special thanks to Jib)
+//  - Now uses multiple edge detectors, with V_SQUARE offering some of the best quality. (Special thanks to Jib)
+//  - Minor change to Grayscale_Pixel() to increase speed. (Special thanks to Jib)
 //CAIR v2.10 Changelog: (The great title of v3.0 is when I have CAIR_HD() using Poisson reconstruction, a ways away...)
 //  - Removed multiple levels of derefrencing in all the thread functions for a 15% speed boost across the board.
 //  - Changed the way CAIR_Removal() works for more flexability and better operation.
@@ -115,7 +125,6 @@
 #include <cmath>
 #include <pthread.h>
 
-
 using namespace std;
 
 struct pixel
@@ -140,9 +149,9 @@ struct Gray_Params
 
 CML_byte Grayscale_Pixel( CML_RGBA * pixel )
 {
-    return (CML_byte)floor( 0.299 * pixel->red +
-                            0.587 * pixel->green +
-                            0.114 * pixel->blue );
+	return (CML_byte)floor( ( 299 * pixel->red +
+                              587 * pixel->green +
+                              114 * pixel->blue ) / 1000.0 );
 }
 
 //Our thread function for the Grayscale
@@ -166,7 +175,7 @@ void * Gray_Quadrant( void * area )
 } //end Gray_Quadrant()
 
 
-//Sort-of does a RGB->YUV conversion
+//Sort-of does a RGB->YUV conversion (actually, just RGB->Y)
 //This is multi-threaded to 4 threads, spliting the image into 4 quadrants
 void Grayscale_Image( CML_color * Source, CML_gray * Dest )
 {
@@ -221,6 +230,7 @@ void Grayscale_Image( CML_color * Source, CML_gray * Dest )
     pthread_join( gray_threads[1], NULL );
     pthread_join( gray_threads[2], NULL );
     pthread_join( gray_threads[3], NULL );
+
 } //end Grayscale_Image()
 
 /*****************************************************************************************
@@ -238,29 +248,92 @@ struct Edge_Params
     int bot_x;
     int bot_y;
     edge_safe safety;
+    CAIR_convolution conv;
 };
 
 //returns the convolution value of the pixel Source[x][y] with the Prewitt kernel
 //Safe version for the perimiters
-int Convolve_Pixel( CML_gray * Source, int x, int y, edge_safe safety )
+inline int Convolve_Pixel( CML_gray * Source, int x, int y, edge_safe safety, CAIR_convolution convolution)
 {
     int conv = 0;
 
-    if( safety == SAFE )
+    switch( convolution )
     {
-        conv = abs( (*Source).Get(x+1,y+1) + (*Source).Get(x+1,y) + (*Source).Get(x+1,y-1) //x part of the prewitt
-                   -(*Source).Get(x-1,y-1) - (*Source).Get(x-1,y) - (*Source).Get(x-1,y+1) ) +
-               abs( (*Source).Get(x+1,y+1) + (*Source).Get(x,y+1) + (*Source).Get(x-1,y+1) //y part of the prewitt
-                   -(*Source).Get(x+1,y-1) - (*Source).Get(x,y-1) - (*Source).Get(x-1,y-1) );
-    }
-    else
-    {
-        conv = abs( (*Source)(x+1,y+1) + (*Source)(x+1,y) + (*Source)(x+1,y-1) //x part of the prewitt
-                   -(*Source)(x-1,y-1) - (*Source)(x-1,y) - (*Source)(x-1,y+1) ) +
-               abs( (*Source)(x+1,y+1) + (*Source)(x,y+1) + (*Source)(x-1,y+1) //y part of the prewitt
-                   -(*Source)(x+1,y-1) - (*Source)(x,y-1) - (*Source)(x-1,y-1) );
-    }
+	case PREWITT:
+	    if( safety == SAFE )
+	    {
+			conv = abs( (*Source).Get(x+1,y+1) + (*Source).Get(x+1,y) + (*Source).Get(x+1,y-1) //x part of the prewitt
+					   -(*Source).Get(x-1,y-1) - (*Source).Get(x-1,y) - (*Source).Get(x-1,y+1) ) +
+				   abs( (*Source).Get(x+1,y+1) + (*Source).Get(x,y+1) + (*Source).Get(x-1,y+1) //y part of the prewitt
+					   -(*Source).Get(x+1,y-1) - (*Source).Get(x,y-1) - (*Source).Get(x-1,y-1) );
+	    }
+	    else
+	    {
+			conv = abs( (*Source)(x+1,y+1) + (*Source)(x+1,y) + (*Source)(x+1,y-1) //x part of the prewitt
+					   -(*Source)(x-1,y-1) - (*Source)(x-1,y) - (*Source)(x-1,y+1) ) +
+				   abs( (*Source)(x+1,y+1) + (*Source)(x,y+1) + (*Source)(x-1,y+1) //y part of the prewitt
+					   -(*Source)(x+1,y-1) - (*Source)(x,y-1) - (*Source)(x-1,y-1) );
+	    }
+	    break;
 
+	 case V_SQUARE:
+	    if( safety == SAFE )
+	    {
+	    	conv = (*Source).Get(x+1,y+1) + (*Source).Get(x+1,y) + (*Source).Get(x+1,y-1) //x part of the prewitt
+				  -(*Source).Get(x-1,y-1) - (*Source).Get(x-1,y) - (*Source).Get(x-1,y+1);
+			conv *= conv;
+	    }
+	    else
+	    {
+			conv = (*Source)(x+1,y+1) + (*Source)(x+1,y) + (*Source)(x+1,y-1) //x part of the prewitt
+				  -(*Source)(x-1,y-1) - (*Source)(x-1,y) - (*Source)(x-1,y+1);
+			conv *= conv;
+	    }
+	    break;
+
+	 case V1:
+	    if( safety == SAFE )
+	    {
+			conv =  abs( (*Source).Get(x+1,y+1) + (*Source).Get(x+1,y) + (*Source).Get(x+1,y-1) //x part of the prewitt
+		                -(*Source).Get(x-1,y-1) - (*Source).Get(x-1,y) - (*Source).Get(x-1,y+1) );
+	    }
+	    else
+	    {
+			conv = abs( (*Source)(x+1,y+1) + (*Source)(x+1,y) + (*Source)(x+1,y-1) //x part of the prewitt
+					   -(*Source)(x-1,y-1) - (*Source)(x-1,y) - (*Source)(x-1,y+1) ) ;
+	    }
+	    break;
+	
+	 case SOBEL:
+	    if( safety == SAFE )
+	    {
+			conv = abs( (*Source).Get(x+1,y+1) + (2 * (*Source).Get(x+1,y)) + (*Source).Get(x+1,y-1) //x part of the sobel
+					   -(*Source).Get(x-1,y-1) - (2 * (*Source).Get(x-1,y)) - (*Source).Get(x-1,y+1) ) +
+				   abs( (*Source).Get(x+1,y+1) + (2 * (*Source).Get(x,y+1)) + (*Source).Get(x-1,y+1) //y part of the sobel
+					   -(*Source).Get(x+1,y-1) - (2 * (*Source).Get(x,y-1)) - (*Source).Get(x-1,y-1) );
+	    }
+	    else
+	    {
+			conv = abs( (*Source)(x+1,y+1) + (2 * (*Source)(x+1,y)) + (*Source)(x+1,y-1) //x part of the sobel
+					   -(*Source)(x-1,y-1) - (2 * (*Source)(x-1,y)) - (*Source)(x-1,y+1) ) +
+				   abs( (*Source)(x+1,y+1) + (2 * (*Source)(x,y+1)) + (*Source)(x-1,y+1) //y part of the sobel
+					   -(*Source)(x+1,y-1) - (2 * (*Source)(x,y-1)) - (*Source)(x-1,y-1) );
+	    }
+	    break;
+
+	case LAPLACIAN:
+		if( safety == SAFE )
+		{
+			conv = abs( (*Source).Get(x+1,y) + (*Source).Get(x-1,y) + (*Source).Get(x,y+1) + (*Source).Get(x,y-1)
+				       -(4 * (*Source).Get(x,y)) );
+		}
+		else
+		{
+			conv = abs( (*Source)(x+1,y) + (*Source)(x-1,y) + (*Source)(x,y+1) + (*Source)(x,y-1)
+				       -(4 * (*Source)(x,y)) );
+		}
+		break;
+    }
     return conv;
 }
 
@@ -273,7 +346,7 @@ void * Edge_Quadrant( void * area )
     {
         for( int x = edge_area.top_x; x <= edge_area.bot_x; x++ )
         {
-            (*(edge_area.Dest))(x,y) = Convolve_Pixel( edge_area.Source, x, y, edge_area.safety );
+            (*(edge_area.Dest))(x,y) = Convolve_Pixel( edge_area.Source, x, y, edge_area.safety, edge_area.conv);
         }
     }
 
@@ -287,7 +360,7 @@ void * Edge_Quadrant( void * area )
 //I decided to go with a modified Sobel, called Prewitt. It has the ease of coding, but doesn't suffer the isotropic nature of sobel.
 //(ie. it is less particualr to a set of directions around the pixel. Sobel likes the cardinal directions somewhat. They're both decent.)
 //Note: Dest better be of proper size.
-void Edge_Detect( CML_gray * Source, CML_int * Dest )
+void Edge_Detect( CML_gray * Source, CML_int * Dest, CAIR_convolution conv )
 {
     //There is no easy solution to the boundries. Calling the same boundry pixel to convolve itself against seems actually better
     //than padding the image with zeros or 255's.
@@ -298,37 +371,34 @@ void Edge_Detect( CML_gray * Source, CML_int * Dest )
     pthread_t edge_threads[4];
     Edge_Params thread_params[5];
 
+    for( int i = 0; i < 4; i++ )
+    {
+        thread_params[i].Source = Source;
+        thread_params[i].Dest = Dest;
+        thread_params[i].safety = UNSAFE;
+        thread_params[i].conv = conv;
+    }
+
     //top left quadrant
-    thread_params[0].Source = Source;
-    thread_params[0].Dest = Dest;
-    thread_params[0].safety = UNSAFE;
     thread_params[0].top_x = 1;
     thread_params[0].top_y = 1;
     thread_params[0].bot_x = (*Source).Width() / 2;
     thread_params[0].bot_y = (*Source).Height() / 2;
 
     //top right quadrant
-    thread_params[1].Source = Source;
-    thread_params[1].Dest = Dest;
-    thread_params[1].safety = UNSAFE;
     thread_params[1].top_x = thread_params[0].bot_x + 1;
     thread_params[1].top_y = 1;
     thread_params[1].bot_x = (*Source).Width() - 2;
     thread_params[1].bot_y = thread_params[0].bot_y;
 
     //bottom left quadrant
-    thread_params[2].Source = Source;
-    thread_params[2].Dest = Dest;
-    thread_params[2].safety = UNSAFE;
     thread_params[2].top_x = 1;
     thread_params[2].top_y = thread_params[0].bot_y + 1;
     thread_params[2].bot_x = thread_params[0].bot_x;
     thread_params[2].bot_y = (*Source).Height() - 2;
 
     //bottom right quadrant
-    thread_params[3].Source = Source;
-    thread_params[3].Dest = Dest;
-    thread_params[3].safety = UNSAFE;
+
     thread_params[3].top_x = thread_params[1].top_x;
     thread_params[3].top_y = thread_params[2].top_y;
     thread_params[3].bot_x = thread_params[1].bot_x;
@@ -368,10 +438,11 @@ void Edge_Detect( CML_gray * Source, CML_int * Dest )
     Edge_Quadrant( &thread_params[4] );
 
     //now wait on them
-    pthread_join( edge_threads[0], NULL );
-    pthread_join( edge_threads[1], NULL );
-    pthread_join( edge_threads[2], NULL );
-    pthread_join( edge_threads[3], NULL );
+    for( int i = 0; i < 4; i++ )
+	{
+        pthread_join( edge_threads[i], NULL );
+	}
+
 } //end Edge_Detect()
 
 /*****************************************************************************************
@@ -404,7 +475,7 @@ inline int min_of_three( int x, int y, int z )
     }
     if( z < min )
     {
-        min = z;
+        return z;
     }
 
     return min;
@@ -707,6 +778,9 @@ long Energy_Path( CML_int * Edge, CML_int * Weights, CML_int * Energy, vector<pi
     return Generate_Path( Energy, min_x, Path );
 }
 
+/*****************************************************************************************
+**                                        A D D                                         **
+*****************************************************************************************/
 //averages two pixels and returns the values
 CML_RGBA Average_Pixels( CML_RGBA Pixel1, CML_RGBA Pixel2 )
 {
@@ -720,12 +794,6 @@ CML_RGBA Average_Pixels( CML_RGBA Pixel1, CML_RGBA Pixel2 )
     return average;
 }
 
-
-
-/*****************************************************************************************
-**                                        A D D                                         **
-*****************************************************************************************/
-
 struct Add_Params
 {
     CML_color * Source;
@@ -733,6 +801,7 @@ struct Add_Params
     CML_int * Weights;
     CML_int * AWeights;
     CML_int * Edge;
+	CAIR_convolution conv;
     CML_gray * Grayscale;
     int add_weight;
     int top_x;
@@ -754,15 +823,13 @@ void * Add_Quadrant( void * area )
         (*(add_area.Source)).Shift_Row( add.x, y, 1 );
         (*(add_area.AWeights)).Shift_Row( add.x, y, 1 );
         (*(add_area.Weights)).Shift_Row( add.x, y, 1 );
-        (*(add_area.Edge)).Shift_Row( add.x, y, 1 );
         (*(add_area.Grayscale)).Shift_Row( add.x, y, 1 );
-
         
         //go back and set the added pixel
         (*(add_area.Source))(add.x,y) = Average_Pixels( (*(add_area.Source))(add.x,y), (*(add_area.Source)).Get(add.x-1,y));
         (*(add_area.Weights))(add.x,y) = ( (*(add_area.Weights))(add.x,y) + (*(add_area.Weights)).Get(add.x-1,y) ) / 2;
-        (*(add_area.Edge))(add.x,y) = ( (*(add_area.Edge))(add.x,y) + (*(add_area.Edge)).Get(add.x-1,y) ) / 2;
         (*(add_area.Grayscale))(add.x,y) = ( (*(add_area.Grayscale))(add.x,y) + (*(add_area.Grayscale)).Get(add.x-1,y) ) / 2;
+		(*(add_area.Grayscale))(add.x,y) = Grayscale_Pixel( &(*(add_area.Source))(add.x,y) );
 
         (*(add_area.AWeights))(add.x,y) = add_area.add_weight; //the new path
         if( add.x < (*(add_area.AWeights)).Width() )
@@ -773,9 +840,52 @@ void * Add_Quadrant( void * area )
     return NULL;
 }
 
+//Adjusts the area around the added path by recalculating only the edge values that will change.
+//This assumes no larger than a 3x3 kernel for the convolution. A larger kernel will require more pixels to be adjusted.
+void * Add_Edge( void * area )
+{
+	Add_Params add_area = (*((Add_Params *)area));
+
+	for( int y = add_area.top_y; y <= add_area.bot_y; y++ )
+    {
+        pixel add = (*(add_area.Path))[y];
+		edge_safe safety = SAFE; //figure out the bounds-checking on this
+
+		(*(add_area.Edge)).Shift_Row( add.x, y, 1 );
+
+		//these checks assume a convolution kernel no larger than 3x3
+        if( (add.x - 2) > 0 )
+		{
+            (*(add_area.Edge))(add.x-3,y) = Convolve_Pixel( add_area.Grayscale, add.x-3, y, safety, add_area.conv );
+		}
+        if( (add.x - 1) > 0 )
+		{
+            (*(add_area.Edge))(add.x-2,y) = Convolve_Pixel( add_area.Grayscale, add.x-2, y, safety, add_area.conv );
+		}
+        if( add.x > 0 )
+		{
+            (*(add_area.Edge))(add.x-1,y) = Convolve_Pixel( add_area.Grayscale, add.x-1, y, safety, add_area.conv );
+		}
+
+		//no checks on these since they will always be there
+		(*(add_area.Edge))(add.x,y) = Convolve_Pixel( add_area.Grayscale, add.x, y, safety, add_area.conv );
+        (*(add_area.Edge))(add.x+1,y) = Convolve_Pixel( add_area.Grayscale, add.x+1, y, safety, add_area.conv );
+
+        if( (add.x + 2) < (*(add_area.Source)).Width() )
+		{
+            (*(add_area.Edge))(add.x+2,y) = Convolve_Pixel( add_area.Grayscale, add.x+2, y, safety, add_area.conv );
+		}
+        if( (add.x + 3) < (*(add_area.Source)).Width() )
+		{
+            (*(add_area.Edge))(add.x+3,y) = Convolve_Pixel( add_area.Grayscale, add.x+3, y, safety, add_area.conv );
+		}
+    }
+	return NULL;
+}
+
 //Adds Path into Source, storing the result in Dest.
 //AWeights is used to store the enlarging artifical weights.
-void Add_Path( CML_color * Source, vector<pixel> * Path, CML_int * Weights, CML_int * Edge, CML_gray * Grayscale, CML_int * AWeights, int add_weight )
+void Add_Path( CML_color * Source, vector<pixel> * Path, CML_int * Weights, CML_int * Edge, CML_gray * Grayscale, CML_int * AWeights, int add_weight, CAIR_convolution conv )
 {
     (*Source).Resize_Width( (*Source).Width() + 1 );
     (*AWeights).Resize_Width( (*Source).Width() );
@@ -792,6 +902,7 @@ void Add_Path( CML_color * Source, vector<pixel> * Path, CML_int * Weights, CML_
     thread_params[0].Weights = Weights;
     thread_params[0].AWeights = AWeights;
     thread_params[0].Edge = Edge;
+	thread_params[0].conv = conv;
     thread_params[0].Grayscale = Grayscale;
     thread_params[0].add_weight = add_weight;
     thread_params[0].top_x = 0;
@@ -824,12 +935,30 @@ void Add_Path( CML_color * Source, vector<pixel> * Path, CML_int * Weights, CML_
             exit(1);
         }
     }
-
     //now wait on them
     pthread_join( add_threads[0], NULL );
     pthread_join( add_threads[1], NULL );
     pthread_join( add_threads[2], NULL );
     pthread_join( add_threads[3], NULL );
+
+    //create the four more threads
+	//We have to wait until the Source image is correctly shifted to avoid bad things from happening when we edge detect.
+	//We may try to get a value on the bounderies of the threads before the row is shifted.
+    for( int i = 0; i < 4; i++ )
+    {
+        int rc = pthread_create( &add_threads[i], NULL, Add_Edge, (void *)&thread_params[i] );
+        if( rc != 0 )
+        {
+            cout << endl << "CAIR: Add_Path(): FATAL ERROR! Unable to spawn thread!" << endl;
+            exit(1);
+        }
+    }
+    //now wait on them again
+    pthread_join( add_threads[0], NULL );
+    pthread_join( add_threads[1], NULL );
+    pthread_join( add_threads[2], NULL );
+    pthread_join( add_threads[3], NULL );
+
 } //end Add_Path()
 
 
@@ -931,7 +1060,7 @@ void Copy_Reserved( CML_color * Source, CML_color * Dest )
 //a very large add_weight will cause the algorithm to work more like a linear algorithm, evenly distributing new paths.
 //Having a very small weight will cause stretching. I provide this as a paramater mainly because I don't know if someone
 //will see a need for it, so I might of well leave it in.
-bool CAIR_Add( CML_color * Source, CML_int * Weights, int goal_x, double quality, int add_weight, CML_color * Dest, ProgressPtr p )
+bool CAIR_Add( CML_color * Source, CML_int * Weights, int goal_x, int add_weight, CAIR_convolution conv, CML_color * Dest, ProgressPtr p )
 {
     CML_gray Grayscale( (*Source).Width(), (*Source).Height() );
 
@@ -958,23 +1087,18 @@ bool CAIR_Add( CML_color * Source, CML_int * Weights, int goal_x, double quality
     //have to do this first to get it started
     Copy_Reserved( Source, Dest );
     Grayscale_Image( Source, &Grayscale );
-    Edge_Detect( &Grayscale, &Edge );
+    Edge_Detect( &Grayscale, &Edge, conv );
 
 
     for( int i = 0; i < adds; i++ )
     {
         //If you're going to maintain some sort of progress counter/bar, here's where you would do it!
-        if(p && !p(i)) return false;
+        if(!p(i)) return false;
 
         Add_Weights( Weights, &art_weight, &sum_weight );
         Energy_Path( &Edge, &sum_weight, &Energy, &Min_Path );
-        Add_Path( Dest, &Min_Path, Weights, &Edge, &Grayscale, &art_weight, add_weight );
+        Add_Path( Dest, &Min_Path, Weights, &Edge, &Grayscale, &art_weight, add_weight, conv );
 
-        //quality calculation
-        if( ( ( i % (int)( 1 / quality ) ) == 0 ) && ( quality != 0 ) )
-        {
-            Edge_Detect( &Grayscale, &Edge );
-        }
     }
     return true;
 } //end CAIR_Add()
@@ -982,14 +1106,13 @@ bool CAIR_Add( CML_color * Source, CML_int * Weights, int goal_x, double quality
 /*****************************************************************************************
 **                                      R E M O V E                                     **
 *****************************************************************************************/
-
-
 struct Remove_Params
 {
     CML_color * Source;
     vector<pixel> * Path;
     CML_int * Weights;
     CML_int * Edge;
+	CAIR_convolution conv;
     CML_gray * Grayscale;
     int top_x;
     int top_y;
@@ -1016,8 +1139,7 @@ void * Remove_Quadrant( void * area )
                 //average removed pixel back in
                 (*(remove_area.Source))(remove.x-1,y) = Average_Pixels( (*(remove_area.Source))(remove.x,y), (*(remove_area.Source)).Get(remove.x-1,y) );
             }
-            (*(remove_area.Grayscale))(remove.x-1,y) = ( (*(remove_area.Grayscale))(remove.x,y) + (*(remove_area.Grayscale)).Get(remove.x-1,y) ) / 2;
-            (*(remove_area.Edge))(remove.x-1,y) = ( (*(remove_area.Edge))(remove.x,y) + (*(remove_area.Edge)).Get(remove.x-1,y) ) / 2;
+			(*(remove_area.Grayscale))(remove.x-1,y) = Grayscale_Pixel( &(*(remove_area.Source))(remove.x-1,y) );
         }
 
         if( (remove.x + 1) < (*(remove_area.Source)).Width() )
@@ -1027,24 +1149,66 @@ void * Remove_Quadrant( void * area )
                 //average removed pixel back in
                 (*(remove_area.Source))(remove.x+1,y) = Average_Pixels( (*(remove_area.Source))(remove.x,y), (*(remove_area.Source)).Get(remove.x+1,y) );
             }
-            (*(remove_area.Edge))(remove.x+1,y) = ( (*(remove_area.Edge))(remove.x,y) + (*(remove_area.Edge)).Get( remove.x+1, y ) ) / 2;
-            (*(remove_area.Grayscale))(remove.x+1,y) = ( (*(remove_area.Grayscale))(remove.x,y) + (*(remove_area.Grayscale)).Get( remove.x+1, y ) ) / 2;
+			(*(remove_area.Grayscale))(remove.x+1,y) = Grayscale_Pixel( &(*(remove_area.Source))(remove.x+1,y) );
         }
 
         //shift everyone over
         (*(remove_area.Source)).Shift_Row( remove.x + 1, y, -1 );
         (*(remove_area.Grayscale)).Shift_Row( remove.x + 1, y, -1 );
         (*(remove_area.Weights)).Shift_Row( remove.x + 1, y, -1 );
-        (*(remove_area.Edge)).Shift_Row( remove.x + 1, y, -1 );
-
     }
+
     return NULL;
 } //end Remove_Quadrant()
+
+//Readjust the edge values around the removed path.
+void * Remove_Edge( void * area )
+{
+	Remove_Params remove_area = (*((Remove_Params *)area));
+
+	//correct the edge values that have changed around the removed path
+	for( int y = remove_area.top_y; y <= remove_area.bot_y; y++ )
+	{
+		pixel remove = (*(remove_area.Path))[y];
+		edge_safe safety = SAFE; //figure out these bounds checks later
+
+		//these checks assume a convolution kernel no larger than 3x3
+        if( (remove.x - 3) > 0 )
+		{
+            (*(remove_area.Edge))(remove.x-3,y) = Convolve_Pixel( remove_area.Grayscale, remove.x-3, y, safety, remove_area.conv );
+		}
+        if( (remove.x - 2) > 0 )
+		{
+            (*(remove_area.Edge))(remove.x-2,y) = Convolve_Pixel( remove_area.Grayscale, remove.x-2, y, safety, remove_area.conv );
+		}
+        if( (remove.x - 1) > 0 )
+		{
+            (*(remove_area.Edge))(remove.x-1,y) = Convolve_Pixel( remove_area.Grayscale, remove.x-1, y, safety, remove_area.conv );
+		}
+		
+        if( (remove.x + 1) < (*(remove_area.Source)).Width() )
+		{
+            (*(remove_area.Edge))(remove.x+1,y) = Convolve_Pixel( remove_area.Grayscale, remove.x, y, safety, remove_area.conv );
+		}
+        if( (remove.x + 2) < (*(remove_area.Source)).Width() )
+		{
+            (*(remove_area.Edge))(remove.x+2,y) = Convolve_Pixel( remove_area.Grayscale, remove.x+1, y, safety, remove_area.conv );
+		}
+        if( (remove.x + 3) < (*(remove_area.Source)).Width() )
+		{
+            (*(remove_area.Edge))(remove.x+3,y) = Convolve_Pixel( remove_area.Grayscale, remove.x+2, y, safety, remove_area.conv );
+		}
+
+		//now we can safely shift
+        (*(remove_area.Edge)).Shift_Row( remove.x + 1, y, -1 );
+	}
+	return NULL;
+} //end Remove_Edge()
 
 //Removes the requested path from the Edge, Weights, and the image itself.
 //Edge and the image have the path blended back into the them.
 //Weights and Edge better match the dimentions of Source! Path needs to be the same length as the height of the image!
-void Remove_Path( CML_color * Source, vector<pixel> * Path, CML_int * Weights, CML_int * Edge, CML_gray * Grayscale )
+void Remove_Path( CML_color * Source, vector<pixel> * Path, CML_int * Weights, CML_int * Edge, CML_gray * Grayscale, CAIR_convolution conv )
 {
     pthread_t remove_threads[4];
     Remove_Params thread_params[4];
@@ -1054,6 +1218,7 @@ void Remove_Path( CML_color * Source, vector<pixel> * Path, CML_int * Weights, C
     thread_params[0].Path = Path;
     thread_params[0].Weights = Weights;
     thread_params[0].Edge = Edge;
+	thread_params[0].conv = conv;
     thread_params[0].Grayscale = Grayscale;
     thread_params[0].top_x = 0;
     thread_params[0].top_y = 0;
@@ -1085,7 +1250,6 @@ void Remove_Path( CML_color * Source, vector<pixel> * Path, CML_int * Weights, C
             exit(1);
         }
     }
-
     //now wait on them
     pthread_join( remove_threads[0], NULL );
     pthread_join( remove_threads[1], NULL );
@@ -1095,13 +1259,30 @@ void Remove_Path( CML_color * Source, vector<pixel> * Path, CML_int * Weights, C
     //now we can safely resize everyone down
     (*Source).Resize_Width( (*Source).Width() - 1 );
     (*Weights).Resize_Width( (*Source).Width() );
-    (*Edge).Resize_Width( (*Source).Width() );
     (*Grayscale).Resize_Width( (*Source).Width() );
+
+	//create four more threads that handle the edge
+    for( int i = 0; i < 4; i++ )
+    {
+        int rc = pthread_create( &remove_threads[i], NULL, Remove_Edge, (void *)&thread_params[i] );
+        if( rc != 0 )
+        {
+            cout << endl << "CAIR: Remove_Path(): FATAL ERROR! Unable to spawn thread!" << endl;
+            exit(1);
+        }
+    }
+    //now wait on them, ... again
+    pthread_join( remove_threads[0], NULL );
+    pthread_join( remove_threads[1], NULL );
+    pthread_join( remove_threads[2], NULL );
+    pthread_join( remove_threads[3], NULL );
+
+	(*Edge).Resize_Width( (*Source).Width() );
 } //end Remove_Path()
 
 
 //Removes all requested vertical paths form the image.
-bool CAIR_Remove( CML_color * Source, CML_int * Weights, int goal_x, double quality, CML_color * Dest, ProgressPtr p )
+bool CAIR_Remove( CML_color * Source, CML_int * Weights, int goal_x, CAIR_convolution conv , CML_color * Dest, ProgressPtr p )
 {
     CML_gray Grayscale( (*Source).Width(), (*Source).Height() );
 
@@ -1113,23 +1294,15 @@ bool CAIR_Remove( CML_color * Source, CML_int * Weights, int goal_x, double qual
     //we must do this the first time. quality will determine how often we do this once we get going
     (*Dest) = (*Source);
     Grayscale_Image( Source, &Grayscale );
-    Edge_Detect( &Grayscale, &Edge );
-
+    Edge_Detect( &Grayscale, &Edge, conv );
 
     for( int i = 0; i < removes; i++ )
     {
         //If you're going to maintain some sort of progress counter/bar, here's where you would do it!
-        if(p && !p(i)) return false;
+        if(!p(i)) return false;
 
         Energy_Path( &Edge, Weights, &Energy, &Min_Path );
-        Remove_Path( Dest, &Min_Path, Weights, &Edge, &Grayscale );
-
-        //quality represents a precent of how often during the remove cycle we recalculate the edge from the image
-        //so, I do this little wonder here to accomplish that
-        if( ( ( i % (int)( 1 / quality ) ) == 0 ) && ( quality != 0 ) )
-        {
-            Edge_Detect( &Grayscale, &Edge ); //don't need to resize since Remove_Path already did
-        }
+        Remove_Path( Dest, &Min_Path, Weights, &Edge, &Grayscale, conv );
     }
     return true;
 } //end CAIR_Remove()
@@ -1152,14 +1325,14 @@ bool CAIR_Remove( CML_color * Source, CML_int * Weights, int goal_x, double qual
 //Note: Weights does affect path adding, so a large negative weight will atract the most paths. Also, if add_weight is too large,
 //it may eventually force new paths into areas marked for protection. I am unsure of an exact ratio on such things at this time.
 //The internal order is this: remove horizontal, remove vertical, add horizontal, add vertical.
-bool CAIR( CML_color * Source, CML_int * Weights, int goal_x, int goal_y, double quality, int add_weight, CML_color * Dest, ProgressPtr p )
+bool CAIR( CML_color * Source, CML_int * Weights, int goal_x, int goal_y, int add_weight, CAIR_convolution conv , CML_color * Dest, ProgressPtr p )
 {
     CML_color Temp( 1, 1 );
     Temp = (*Source);
     if( goal_x < (*Source).Width() )
     {
-	if(!CAIR_Remove( Source, Weights, goal_x, quality, Dest, p ))
-		return false;
+        if(!CAIR_Remove( Source, Weights, goal_x, conv, Dest, p ))
+             return false;
         Temp = (*Dest);
     }
 
@@ -1173,8 +1346,8 @@ bool CAIR( CML_color * Source, CML_int * Weights, int goal_x, int goal_y, double
         TSource.Transpose( &Temp );
         TWeights.Transpose( Weights );
 
-	if(!CAIR_Remove( &TSource, &TWeights, goal_y, quality, &TDest, p ))
-		return false;
+        if(!CAIR_Remove( &TSource, &TWeights, goal_y, conv, &TDest, p ))
+             return false;
         
         //store back the transposed info
         (*Dest).Transpose( &TDest );
@@ -1184,8 +1357,8 @@ bool CAIR( CML_color * Source, CML_int * Weights, int goal_x, int goal_y, double
 
     if( goal_x > (*Source).Width() )
     {
-	if(!CAIR_Add( &Temp, Weights, goal_x, quality, add_weight, Dest, p ))
-		return false;
+        if(!CAIR_Add( &Temp, Weights, goal_x, add_weight, conv, Dest, p ))
+             return false;
         Temp = (*Dest); //incase we resize in the y direction
     }
     if( goal_y > (*Source).Height() )
@@ -1198,8 +1371,8 @@ bool CAIR( CML_color * Source, CML_int * Weights, int goal_x, int goal_y, double
         TSource.Transpose( &Temp );
         TWeights.Transpose( Weights );
 
-	if(!CAIR_Add( &TSource, &TWeights, goal_y, quality, add_weight, &TDest, p ))
-		return false;
+        if(!CAIR_Add( &TSource, &TWeights, goal_y, add_weight, conv, &TDest, p ))
+             return false;
         
         //store back the transposed info
         (*Dest).Transpose( &TDest );
@@ -1232,13 +1405,13 @@ void CAIR_Grayscale( CML_color * Source, CML_color * Dest )
 }
 
 //Simple function that generates the edge-detection image of Source and stores it in Dest.
-void CAIR_Edge( CML_color * Source, CML_color * Dest )
+void CAIR_Edge( CML_color * Source, CAIR_convolution conv, CML_color * Dest )
 {
     CML_gray gray( (*Source).Width(), (*Source).Height() );
     Grayscale_Image( Source, &gray );
 
     CML_int edge( (*Source).Width(), (*Source).Height() );
-    Edge_Detect( &gray, &edge );
+    Edge_Detect( &gray, &edge, conv );
 
     (*Dest).D_Resize( (*Source).Width(), (*Source).Height() );
 
@@ -1263,13 +1436,13 @@ void CAIR_Edge( CML_color * Source, CML_color * Dest )
 
 //Simple function that generates the vertical energy map of Source placing it into Dest.
 //All values are scaled down to their relative gray value. Weights are assumed all zero.
-void CAIR_V_Energy( CML_color * Source, CML_color * Dest )
+void CAIR_V_Energy( CML_color * Source, CAIR_convolution conv, CML_color * Dest )
 {
     CML_gray gray( (*Source).Width(), (*Source).Height() );
     Grayscale_Image( Source, &gray );
 
     CML_int edge( (*Source).Width(), (*Source).Height() );
-    Edge_Detect( &gray, &edge );
+    Edge_Detect( &gray, &edge, conv );
 
     CML_int energy( edge.Width(), edge.Height() );
     CML_int weights( edge.Width(), edge.Height() );
@@ -1313,13 +1486,13 @@ void CAIR_V_Energy( CML_color * Source, CML_color * Dest )
 
 //Simple function that generates the horizontal energy map of Source placing it into Dest.
 //All values are scaled down to their relative gray value. Weights are assumed all zero.
-void CAIR_H_Energy( CML_color * Source, CML_color * Dest )
+void CAIR_H_Energy( CML_color * Source, CAIR_convolution conv, CML_color * Dest )
 {
     CML_color Tsource( 1, 1 );
     CML_color Tdest( 1, 1 );
 
     Tsource.Transpose( Source );
-    CAIR_V_Energy( &Tsource, &Tdest );
+    CAIR_V_Energy( &Tsource, conv, &Tdest );
 
     (*Dest).Transpose( &Tdest );
 }
@@ -1330,7 +1503,7 @@ void CAIR_H_Energy( CML_color * Source, CML_color * Dest )
 //VERTICAL will force the function to remove all negative weights in the veritcal direction; likewise for HORIZONTAL.
 //Because some conditions may cause the function not to remove all negative weights in one pass, max_attempts lets the function
 //go through the remoal process as many times as you're willing.
-void CAIR_Removal( CML_color * Source, CML_int * Weights, double quality, CAIR_direction choice, int max_attempts, int add_weight, CML_color * Dest, ProgressPtr p )
+void CAIR_Removal( CML_color * Source, CML_int * Weights, CAIR_direction choice, int max_attempts, int add_weight, CAIR_convolution conv, CML_color * Dest, ProgressPtr p )
 {
     int negative_x = 0;
     int negative_y = 0;
@@ -1374,34 +1547,34 @@ void CAIR_Removal( CML_color * Source, CML_int * Weights, double quality, CAIR_d
             //remove in the direction that has the least to remove
             if( negative_y < negative_x )
             {
-                if(!CAIR( &Temp, Weights, Temp.Width(), Temp.Height() - negative_y, quality, add_weight, Dest, p ))
-                    return;
+                if(!CAIR( &Temp, Weights, Temp.Width(), Temp.Height() - negative_y, add_weight, conv, Dest, p ))
+                     return;
                 Temp = (*Dest);
             }
             else
             {
-                if(!CAIR( &Temp, Weights, Temp.Width() - negative_x, Temp.Height(), quality, add_weight, Dest, p ))
-                    return;
+                if(!CAIR( &Temp, Weights, Temp.Width() - negative_x, Temp.Height(), add_weight, conv, Dest, p ))
+                     return;
                 Temp = (*Dest);
             }
             break;
 
         case HORIZONTAL :
-            if(!CAIR( &Temp, Weights, Temp.Width(), Temp.Height() - negative_y, quality, add_weight, Dest, p ))
-                return;
+            if(!CAIR( &Temp, Weights, Temp.Width(), Temp.Height() - negative_y, add_weight, conv, Dest, p ))
+                 return;
             Temp = (*Dest);
             break;
 
         case VERTICAL :
-            if(!CAIR( &Temp, Weights, Temp.Width() - negative_x, Temp.Height(), quality, add_weight, Dest, p ))
-                return;
+            if(!CAIR( &Temp, Weights, Temp.Width() - negative_x, Temp.Height(), add_weight, conv, Dest, p ))
+                 return;
             Temp = (*Dest);
             break;
         }
     }
 
     //now expand back out to the origional
-    CAIR( &Temp, Weights, (*Source).Width(), (*Source).Height(), quality, add_weight, Dest, p );
+    CAIR( &Temp, Weights, (*Source).Width(), (*Source).Height(), add_weight, conv, Dest, p );
 } //end CAIR_Removal()
 
 /*****************************************************************************************
@@ -1411,7 +1584,7 @@ void CAIR_Removal( CML_color * Source, CML_int * Weights, double quality, CAIR_d
 //will determine which direction has the least amount of energy and then removes in that direction. This is only done
 //for removal, since enlarging will not benifit, although this function will perform addition just like CAIR().
 //Inputs are the same as CAIR(), except quality is assumed to be always one.
-void CAIR_HD( CML_color * Source, CML_int * Weights, int goal_x, int goal_y, int add_weight, CML_color * Dest, ProgressPtr p )
+void CAIR_HD( CML_color * Source, CML_int * Weights, int goal_x, int goal_y, int add_weight, CAIR_convolution conv, CML_color * Dest, ProgressPtr p )
 {
     int i = 0;
     CML_color Temp( 1, 1 );
@@ -1423,7 +1596,7 @@ void CAIR_HD( CML_color * Source, CML_int * Weights, int goal_x, int goal_y, int
     //do this loop when we can remove in either direction
     while( ((*Dest).Width() > goal_x) && ((*Dest).Height() > goal_y) )
     {
-        if(p && !p(i++)) return;
+        if(!p(i++)) return;
         Temp = (*Dest);
         TTemp.Transpose( Dest );
 
@@ -1436,8 +1609,8 @@ void CAIR_HD( CML_color * Source, CML_int * Weights, int goal_x, int goal_y, int
         //edge detect
         CML_int Edge( Temp.Width(), Temp.Height() );
         CML_int TEdge( TTemp.Width(), TTemp.Height() );
-        Edge_Detect( &Grayscale, &Edge );
-        Edge_Detect( &TGrayscale, &TEdge );
+        Edge_Detect( &Grayscale, &Edge, conv );
+        Edge_Detect( &TGrayscale, &TEdge, conv );
 
         //find the energy values
         CML_int TWeights( 1, 1 );
@@ -1451,19 +1624,18 @@ void CAIR_HD( CML_color * Source, CML_int * Weights, int goal_x, int goal_y, int
 
         if( energy_y < energy_x )
         {
-            Remove_Path( &TTemp, &TPath, &TWeights, &TEdge, &TGrayscale );
+            Remove_Path( &TTemp, &TPath, &TWeights, &TEdge, &TGrayscale, conv );
             (*Dest).Transpose( &TTemp );
             (*Weights).Transpose( &TWeights );
         }
         else
         {
-            Remove_Path( &Temp, &Path, Weights, &Edge, &Grayscale );
+            Remove_Path( &Temp, &Path, Weights, &Edge, &Grayscale, conv );
             (*Dest) = Temp;
         }
     }
 
     //one dimension is the now on the goal, so finish off the other direction
     Temp = (*Dest);
-    if(!CAIR( &Temp, Weights, goal_x, goal_y, 1, add_weight, Dest, p ))
-	return;
+    CAIR( &Temp, Weights, goal_x, goal_y, add_weight, conv, Dest, p );
 } //end CAIR_HD()
