@@ -25,7 +25,6 @@ using namespace std;
 typedef int (*ProgressPtr)(int);
 
 //The Great CAIR Frontend. This baby will resize Source using Weights into the dimensions supplied by goal_x and goal_y into Dest.
-//It will use quality as a factor to determine how often the edge is generated between removals/additions.
 //Weights allows for an area to be biased for remvoal/protection. A large positive value will protect a portion of the image,
 //and a large negative value will remove it. Do not exceed the limits of int's, as this will cause an overflow. I would suggest
 //a safe range of -2,000,000 to 2,000,000 (this is a maximum guideline, much smaller weights will work just as well for most images).
@@ -68,6 +67,20 @@ void CAIR_H_Energy( CML_color * Source, CAIR_convolution conv, CML_color * Dest 
 //go through the remoal process as many times as you're willing.
 enum CAIR_direction { AUTO = 0, VERTICAL = 1, HORIZONTAL = 2 };
 void CAIR_Removal( CML_color * Source, CML_int * Weights, CAIR_direction choice, int max_attempts, int add_weight, CAIR_convolution conv, CML_color * Dest, ProgressPtr p );
+
+
+//Precompute removals in the x direction. Map will hold the largest width the corisponding pixel is still visible.
+//This will calculate all removals down to 3 pixels in width.
+//Right now this only performs removals and only the x-direction. For the future enlarging is planned. Precomputing for both directions
+//doesn't work all that well and generates significant artifacts. This function is intended for "content-aware multi-size images" as mentioned
+//in the doctor's presentation. The next logical step would be to encode Map into an existing image format. Then, using a function like
+//CAIR_Map_Resize() the image can be resized on a client machine with very little overhead.
+void CAIR_Image_Map( CML_color * Source, CML_int * Weights, CAIR_convolution conv, CML_int * Map );
+
+//An "example" function on how to decode the Map to quickly resize an image. This is only for the width, since multi-directional
+//resizing produces significant artifacts. Do note this will produce different results than standard CAIR(), because this resize doesn't
+//average pixels back into the image as does CAIR(). This function could be multi-threaded much like Remove_Path() for even faster performance.
+void CAIR_Map_Resize( CML_color * Source, CML_int * Map, int goal_x, CML_color * Dest );
 
 //This works as CAIR, except here maximum quality is attempted. When removing in both directions some amount, CAIR_HD()
 //will determine which direction has the least amount of energy and then removes in that direction. This is only done
