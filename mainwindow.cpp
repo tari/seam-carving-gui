@@ -1,7 +1,7 @@
-// Copyright (C) 2007  Gabe Rudy
+// Copyright (C) 2008  Gabe Rudy
 // 
 // This program is free software; you can redistribute it and/or modify
-// it under the terms of the GNU General Public License version 3 as 
+// it under the terms of the GNU General Public License version 2 as 
 // published by the Free Software Foundation.
 //
 // This program is distributed in the hope that it will be useful,
@@ -12,8 +12,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
-// Gabe Rudy: gabe@gabeiscoding.com
-// http://gabeiscoding.com
+// Gabe Rudy: gaberudy+seamcarving@gmail.com
+// http://code.google.com/p/seam-carving-gui
 
 #include <QtGui>
 #include <QList>
@@ -616,7 +616,7 @@ void MainWindow::about()
 "this on, feel free to try and reach me at <a href=\"mailto:gaberudy+seamcarving@gmail.com\">gaberudy+seamcarving@gmail.com</a>, "
 "and if I haven't completely abandoned this project I may get back to you!</p>"
 ""
-"<p>For more information and updates goto: <a href=\"http://gabeiscoding.com\">http://gabeiscoding.com</a></p>"
+"<p>For more information and updates goto: <a href=\"http://code.google.com/p/seam-carving-gui/\">http://code.google.com/p/seam-carving-gui/</a></p>"
                         ));
 }
 
@@ -736,20 +736,20 @@ void MainWindow::createActions()
   
   _zoomInAct = new QAction(tr("Zoom &In (25%)"), this);
   QList<QKeySequence> inSc;
-  inSc << tr("Ctrl+=") << tr("Ctrl++");
+  inSc << tr("Ctrl++") << tr("Ctrl+=") ;
   _zoomInAct->setShortcuts(inSc);
   _zoomInAct->setEnabled(false);
   connect(_zoomInAct, SIGNAL(triggered()), this, SLOT(zoomIn()));
 
   _zoomOutAct = new QAction(tr("Zoom &Out (25%)"), this);
   QList<QKeySequence> outSc;
-  outSc << tr("Ctrl+_") << tr("Ctrl+-");
+  outSc << tr("Ctrl+-") << tr("Ctrl+_");
   _zoomOutAct->setShortcuts(outSc);
   _zoomOutAct->setEnabled(false);
   connect(_zoomOutAct, SIGNAL(triggered()), this, SLOT(zoomOut()));
 
   _normalSizeAct = new QAction(tr("&Normal Size"), this);
-  _normalSizeAct->setShortcut(tr("Ctrl+S"));
+  _normalSizeAct->setShortcut(tr("Ctrl+0"));
   _normalSizeAct->setEnabled(false);
   connect(_normalSizeAct, SIGNAL(triggered()), this, SLOT(normalSize()));
 
