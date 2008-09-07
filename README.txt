@@ -24,6 +24,16 @@ in.
 
 == Version History ==
 
+1.9
+ * Update to latest CAIR 2.15.1 (Brain_ReCall)
+ * Added forward energy parameter (Brain_ReCall)
+ * Progress bar for HD Quality (Brain_ReCall)
+ * Retain/Remove/Clear Brush now scaled to zoom level (Brain_ReCall)
+ * Upgraded to Qt 4.4.1 (Gabe)
+ * Save/Load Mask as PNG (Gabe)
+ * The Mask is saved/restored in undo/redo operations (Gabe)
+ * Shortcuts changed to be platform specific (Gabe)
+
 1.8
  * Update to latest CAIR 2.13
  * Performance improvements
