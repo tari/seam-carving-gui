@@ -37,6 +37,8 @@ public:
 private slots:
   void open();
   void save();
+  void openMask();  
+  void saveMask();
   void undo();
   void repeat();  
   void copy();
@@ -62,13 +64,14 @@ private:
   bool eventFilter(QObject *obj, QEvent *event);
   
   void openFile(QString fileName);
-  void openImage(QImage image);
+  void openImage(QImage image, QPixmap mask=QPixmap());
   void createActions();
   void createMenus();
   void updateActions();
   void scaleImage(double factor);
   void adjustScrollBar(QScrollBar *scrollBar, double factor);
-  void addToUndoStack(QImage img);
+  void saveInUndoStack();
+  void addToUndoStack();
 
   QString _filter;
   QImage _img;
@@ -80,13 +83,16 @@ private:
   QGraphicsPixmapItem *_imgItem;
   QGraphicsPixmapItem *_maskItem;
   double _scaleFactor;
-  QVector<QImage> _undoStack;
+  QVector<QImage> _undoStackImg;
+  QVector<QPixmap> _undoStackMask;
   int _undoStackPos;
 
   QPrinter _printer;
 
   QAction *_openAct;
-  QAction *_saveAct;  
+  QAction *_saveAct;
+  QAction *_openMaskAct;  
+  QAction *_saveMaskAct;
   QAction *_printAct;
   QAction *_exitAct;
   QAction *_undoAct;

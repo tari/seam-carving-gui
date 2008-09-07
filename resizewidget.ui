@@ -5,14 +5,12 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>314</width>
-    <height>669</height>
+    <width>315</width>
+    <height>702</height>
    </rect>
   </property>
   <property name="sizePolicy" >
-   <sizepolicy>
-    <hsizetype>0</hsizetype>
-    <vsizetype>0</vsizetype>
+   <sizepolicy vsizetype="Fixed" hsizetype="Fixed" >
     <horstretch>0</horstretch>
     <verstretch>0</verstretch>
    </sizepolicy>
@@ -21,11 +19,11 @@
    <string>Form</string>
   </property>
   <layout class="QVBoxLayout" >
-   <property name="margin" >
-    <number>9</number>
-   </property>
    <property name="spacing" >
     <number>6</number>
+   </property>
+   <property name="margin" >
+    <number>9</number>
    </property>
    <item>
     <widget class="QGroupBox" name="groupBox_2" >
@@ -33,10 +31,10 @@
       <string>Retain/Remove</string>
      </property>
      <layout class="QVBoxLayout" >
-      <property name="margin" >
+      <property name="spacing" >
        <number>6</number>
       </property>
-      <property name="spacing" >
+      <property name="margin" >
        <number>6</number>
       </property>
       <item>
@@ -138,18 +136,18 @@
          </item>
          <item row="5" column="0" colspan="3" >
           <layout class="QHBoxLayout" >
-           <property name="margin" >
-            <number>0</number>
-           </property>
            <property name="spacing" >
             <number>6</number>
+           </property>
+           <property name="margin" >
+            <number>0</number>
            </property>
            <item>
             <spacer>
              <property name="orientation" >
               <enum>Qt::Horizontal</enum>
              </property>
-             <property name="sizeHint" >
+             <property name="sizeHint" stdset="0" >
               <size>
                <width>40</width>
                <height>20</height>
@@ -218,18 +216,18 @@
          </item>
          <item row="2" column="0" colspan="2" >
           <layout class="QHBoxLayout" >
-           <property name="margin" >
-            <number>0</number>
-           </property>
            <property name="spacing" >
             <number>6</number>
+           </property>
+           <property name="margin" >
+            <number>0</number>
            </property>
            <item>
             <spacer>
              <property name="orientation" >
               <enum>Qt::Horizontal</enum>
              </property>
-             <property name="sizeHint" >
+             <property name="sizeHint" stdset="0" >
               <size>
                <width>40</width>
                <height>20</height>
@@ -265,12 +263,6 @@
       <string>Other Parameters</string>
      </property>
      <layout class="QGridLayout" >
-      <property name="margin" >
-       <number>6</number>
-      </property>
-      <property name="spacing" >
-       <number>6</number>
-      </property>
       <item row="0" column="0" >
        <widget class="QLabel" name="convLabel" >
         <property name="text" >
@@ -278,7 +270,7 @@
         </property>
        </widget>
       </item>
-      <item row="0" column="1" >
+      <item row="0" column="1" colspan="2" >
        <widget class="QComboBox" name="edgeDetector" >
         <item>
          <property name="text" >
@@ -309,8 +301,18 @@
       </item>
       <item row="1" column="0" colspan="2" >
        <widget class="QCheckBox" name="hdCheckBox" >
+        <property name="toolTip" >
+         <string>Use the Forward Energy algorithm, which can greatly increase quality in some images. Comes at a minor perfromance cost.</string>
+        </property>
         <property name="text" >
          <string>HD Quality</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="2" >
+       <widget class="QCheckBox" name="energyCheckBox" >
+        <property name="text" >
+         <string>Forward Energy</string>
         </property>
        </widget>
       </item>
@@ -321,7 +323,7 @@
         </property>
        </widget>
       </item>
-      <item row="2" column="1" >
+      <item row="2" column="1" colspan="2" >
        <widget class="QLineEdit" name="addWeightLineEdit" >
         <property name="text" >
          <string>500</string>
@@ -335,7 +337,7 @@
         </property>
        </widget>
       </item>
-      <item row="3" column="1" >
+      <item row="3" column="1" colspan="2" >
        <widget class="QLineEdit" name="weightScaleLineEdit" >
         <property name="text" >
          <string>5000</string>
@@ -357,20 +359,54 @@
       <property name="spacing" >
        <number>6</number>
       </property>
+      <item row="0" column="0" >
+       <widget class="QLabel" name="widthLabel" >
+        <property name="text" >
+         <string>Width:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1" >
+       <widget class="QLineEdit" name="widthLineEdit" />
+      </item>
+      <item row="0" column="2" >
+       <widget class="QLabel" name="pixel1Label" >
+        <property name="text" >
+         <string>pixels</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0" >
+       <widget class="QLabel" name="heightLabel" >
+        <property name="text" >
+         <string>Height:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1" >
+       <widget class="QLineEdit" name="heightLineEdit" />
+      </item>
+      <item row="1" column="2" >
+       <widget class="QLabel" name="pixel2Label" >
+        <property name="text" >
+         <string>pixels</string>
+        </property>
+       </widget>
+      </item>
       <item row="2" column="0" colspan="3" >
        <layout class="QHBoxLayout" >
-        <property name="margin" >
-         <number>0</number>
-        </property>
         <property name="spacing" >
          <number>6</number>
+        </property>
+        <property name="margin" >
+         <number>0</number>
         </property>
         <item>
          <spacer>
           <property name="orientation" >
            <enum>Qt::Horizontal</enum>
           </property>
-          <property name="sizeHint" >
+          <property name="sizeHint" stdset="0" >
            <size>
             <width>40</width>
             <height>20</height>
@@ -390,40 +426,6 @@
         </item>
        </layout>
       </item>
-      <item row="1" column="2" >
-       <widget class="QLabel" name="pixel2Label" >
-        <property name="text" >
-         <string>pixels</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="1" >
-       <widget class="QLineEdit" name="heightLineEdit" />
-      </item>
-      <item row="1" column="0" >
-       <widget class="QLabel" name="heightLabel" >
-        <property name="text" >
-         <string>Height:</string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="2" >
-       <widget class="QLabel" name="pixel1Label" >
-        <property name="text" >
-         <string>pixels</string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="1" >
-       <widget class="QLineEdit" name="widthLineEdit" />
-      </item>
-      <item row="0" column="0" >
-       <widget class="QLabel" name="widthLabel" >
-        <property name="text" >
-         <string>Width:</string>
-        </property>
-       </widget>
-      </item>
      </layout>
     </widget>
    </item>
@@ -432,7 +434,7 @@
      <property name="orientation" >
       <enum>Qt::Vertical</enum>
      </property>
-     <property name="sizeHint" >
+     <property name="sizeHint" stdset="0" >
       <size>
        <width>20</width>
        <height>40</height>

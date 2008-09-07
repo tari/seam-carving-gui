@@ -86,11 +86,13 @@ void ImageScene::mouseMoveEvent(QGraphicsSceneMouseEvent * e )
 {
   if(e->buttons() & Qt::LeftButton)
     emit(mouseMoved(e->lastScenePos(), e->scenePos()));
+  QGraphicsScene::mouseMoveEvent(e);
 }
 void ImageScene::mousePressEvent(QGraphicsSceneMouseEvent * e )
 {
   if(e->buttons() & Qt::LeftButton)
     emit(mouseMoved(e->lastScenePos(), e->scenePos()));
+  QGraphicsScene::mousePressEvent(e);
 }
 
 MainWindow::MainWindow()
@@ -148,11 +150,14 @@ MainWindow::MainWindow()
     "into areas marked for protection.");
   QString weightScaleToolTip = tr(
     "The maximum possible weight value applied for protection/removal. This\n"
-    "value determines what the Brush Weight slider uses for its base value.");
+    "value determines what the Brush Weight slider uses for its max value.");
   QString hdToolTip = tr(
     "Enable \"High Definition\" mode. This mode is useful when decreasing the\n"
     "dimensions of an image in both dimensions and produces somewhat better\n"
-    "results at the cost of slower performance.");
+    "results, but can take nearly twice as long.");
+  QString energyToolTip = tr(
+    "Use the Forward Energy algorithm. This algorithm greatly increases quality\n"
+    "in some situations, but comes at a 5% performance cost.");
   QString iterateToolTip = tr(
     "Under some circumstances the remove algorithm leave some red marked areas\n"
     "on the image, this choice will re-run the remove algorithm five times\n"
@@ -168,6 +173,7 @@ MainWindow::MainWindow()
   _resizeWidget.iterateCheckBox->setToolTip(iterateToolTip);
   _resizeWidget.removeButton->setToolTip(removeToolTip);
   _resizeWidget.hdCheckBox->setToolTip(hdToolTip);
+  _resizeWidget.energyCheckBox->setToolTip(energyToolTip);
 
   resize(700, 400);
 }
@@ -179,6 +185,7 @@ void MainWindow::open()
     openFile(fileName);
   }
 }
+
 void MainWindow::openFile(QString fileName)
 {
   QImage image(fileName);
@@ -187,11 +194,10 @@ void MainWindow::openFile(QString fileName)
                              tr("Cannot load %1.").arg(fileName));
     return;
   }
-  addToUndoStack(image);
   openImage(image);
 }
 
-void MainWindow::openImage(QImage image)
+void MainWindow::openImage(QImage image, QPixmap mask)
 {
   _img = image;
   delete _scene;
@@ -202,8 +208,13 @@ void MainWindow::openImage(QImage image)
   _imgItem = _scene->addPixmap(QPixmap::fromImage(_img));
   _imgItem->setZValue(1);
 
-  _maskPix = QPixmap(_img.width(), _img.height());
-  _maskPix.fill(Qt::transparent);
+  if(!mask.isNull())
+  {
+    _maskPix = mask;
+  }else{
+    _maskPix = QPixmap(_img.width(), _img.height());
+    _maskPix.fill(Qt::transparent);
+  }
   _maskItem = _scene->addPixmap(_maskPix);
   _maskItem->setZValue(2); //Always in front of imgItem
 
@@ -213,6 +224,8 @@ void MainWindow::openImage(QImage image)
 
   _printAct->setEnabled(true);
   _saveAct->setEnabled(true);
+  _openMaskAct->setEnabled(true);
+  _saveMaskAct->setEnabled(true);
   _resizeDock->setEnabled(true);
   _copyAct->setEnabled(true);
   _viewImage->setEnabled(true);
@@ -235,25 +248,70 @@ void MainWindow::save()
     QMessageBox::information(this,"Error Saving",QString("Could not save to file: %1").arg(f));
 }
 
+void MainWindow::openMask()
+{
+  QString fileName = QFileDialog::getOpenFileName(this, tr("Open File"), QDir::currentPath(), "Mask File (*.png)");
+  if (!fileName.isEmpty()) {
+    QImage mskImg(fileName);
+    if (mskImg.isNull()) {
+      QMessageBox::information(this, tr("Seam Carving GUI"),
+                               tr("Cannot load %1.").arg(fileName));
+      return;
+    }
+    if(mskImg.height() != _img.height() || mskImg.width() != _img.width())
+    {
+      QMessageBox::information(this, tr("Seam Carving GUI"),
+                               tr("The mask image does not match the dimensions of the current image"));
+      return;
+    }
+    for( int j=0; j<mskImg.height(); j++ )
+    {
+      for( int i=0; i<mskImg.width(); i++ )
+      {
+        QRgb m = mskImg.pixel(i,j);
+        if(qGreen(m) > 0)
+          mskImg.setPixel( i, j, qRgba(0, qGreen(m), 0, qAlpha(m)) );
+        else if(qRed(m) > 0)
+          mskImg.setPixel( i, j, qRgba(qRed(m), 0, 0, qAlpha(m)) );
+        else
+          mskImg.setPixel( i, j, qRgba(0, 0, 0, 0) );
+      }
+    }
+    _maskPix = QPixmap::fromImage(mskImg);
+    _maskItem->setPixmap(_maskPix);
+  }
+}
+
+void MainWindow::saveMask()
+{
+  QString f = QFileDialog::getSaveFileName(this, "Save Image As...", QDir::currentPath(), "Mask File (*.png)");
+  if(f.isEmpty())
+    return;
+  if(!f.endsWith(".png"))
+    f += ".png";
+  if(!_maskPix.save(f))
+    QMessageBox::information(this,"Error Saving",QString("Could not save to file: %1").arg(f));
+}
+
 void MainWindow::undo()
 {
-  if(_undoStackPos > 1)
+  if(_undoStackPos > 0)
   {
     _undoStackPos--;
-    openImage(_undoStack[_undoStackPos]);
-    _undoAct->setEnabled( _undoStackPos > 1 );
-    _repeatAct->setEnabled( _undoStackPos < _undoStack.size()-1 );    
+    openImage(_undoStackImg[_undoStackPos], _undoStackMask[_undoStackPos]);
+    _undoAct->setEnabled( _undoStackPos > 0 );
+    _repeatAct->setEnabled( _undoStackPos < _undoStackImg.size() );
   }
 }
 
 void MainWindow::repeat()
 {
-  if(_undoStackPos < _undoStack.size()-1)
+  if(_undoStackPos < _undoStackImg.size()-1 )
   {
     _undoStackPos++;
-    openImage(_undoStack[_undoStackPos]);
-    _undoAct->setEnabled( _undoStackPos > 1 );
-    _repeatAct->setEnabled( _undoStackPos < _undoStack.size()-1 );
+    openImage(_undoStackImg[_undoStackPos], _undoStackMask[_undoStackPos]);
+    _undoAct->setEnabled( _undoStackPos > 0 );
+    _repeatAct->setEnabled( _undoStackPos < _undoStackImg.size()-1 );
   }
 }
 
@@ -349,6 +407,13 @@ void MainWindow::cairRemove()
     case 3 : conv = SOBEL; break;
     case 4 : conv = LAPLACIAN; break;
   }
+
+  CAIR_energy ener = BACKWARD;
+  if( _resizeWidget.energyCheckBox->isChecked() )
+  {
+    ener = FORWARD;
+  }
+
   CAIR_direction choice = AUTO;
   if(_resizeWidget.removeMode->currentIndex() == 1)
     choice = VERTICAL;
@@ -357,8 +422,9 @@ void MainWindow::cairRemove()
 
   //Transfer the image over to cair image format.
   CML_color source(width, height);
-  CML_color dest(width, height);  
-  CML_int weights(width, height);
+  CML_color dest(1,1);  
+  CML_int source_weights(width, height);
+  CML_int dest_weights(1,1);
   QImagetoCML(_img,source);
   QImage mskImg = _maskPix.toImage();
   for( int j=0; j<height; j++ )
@@ -367,11 +433,11 @@ void MainWindow::cairRemove()
     {
       QRgb m = mskImg.pixel(i,j);
       if(qGreen(m) > 0)
-        weights(i,j) = (int)(qGreen(m) * weight_scale);
+        source_weights(i,j) = (int)(qGreen(m) * weight_scale);
       else if(qRed(m) > 0)
-        weights(i,j) = (int)(qRed(m) * -weight_scale);
+        source_weights(i,j) = (int)(qRed(m) * -weight_scale);
       else
-        weights(i,j) = 0;
+        source_weights(i,j) = 0;
     }
   }
 
@@ -380,11 +446,11 @@ void MainWindow::cairRemove()
   int total_time = 0;
 
   //count how many negative columns exist
-  for( int x = 0; x < weights.Width(); x++ )
+  for( int x = 0; x < source_weights.Width(); x++ )
   {
-    for( int y = 0; y < weights.Height(); y++ )
+    for( int y = 0; y < source_weights.Height(); y++ )
     {
-      if( weights(x,y) < 0 )
+      if( source_weights(x,y) < 0 )
       {
         negative_x++;
         break;
@@ -393,11 +459,11 @@ void MainWindow::cairRemove()
   }
 
   //count how many negative rows exist
-  for( int y = 0; y < weights.Height(); y++ )
+  for( int y = 0; y < source_weights.Height(); y++ )
   {
-    for( int x = 0; x < weights.Width(); x++ )
+    for( int x = 0; x < source_weights.Width(); x++ )
     {
-      if( weights(x,y) < 0 )
+      if( source_weights(x,y) < 0 )
       {
         negative_y++;
         break;
@@ -438,11 +504,11 @@ void MainWindow::cairRemove()
 
   //Call CAIR
   int add_weight = _resizeWidget.addWeightLineEdit->text().toInt();
-  CAIR_Removal( &source, &weights, choice, attempts, add_weight, conv, &dest, updateCallback );
+  CAIR_Removal( &source, &source_weights, choice, attempts, add_weight, conv, ener, &dest_weights, &dest, updateCallback );
   if(prog.wasCanceled())
     return;
   QImage newImg = CMLtoQImage(dest);
-  addToUndoStack(newImg);
+  saveInUndoStack(); //Old image
   _img = newImg;
   _imgItem->setPixmap(QPixmap::fromImage(_img));
   //Set the weight mask to the now reduced size version shrunk by CAIR
@@ -452,10 +518,10 @@ void MainWindow::cairRemove()
   {
     for( int i=0; i<_img.width(); i++ )
     {
-      if(weights(i,j) > 0)
-        maskImg.setPixel(i, j, qRgba( 0, weights(i,j) / weight_scale, 0, weights(i,j) / weight_scale));
-      else if(weights(i,j) < 0)
-        maskImg.setPixel(i, j, qRgba( weights(i,j) / -weight_scale, 0, 0, weights(i,j) / -weight_scale));
+      if(dest_weights(i,j) > 0)
+        maskImg.setPixel(i, j, qRgba( 0, dest_weights(i,j) / weight_scale, 0, dest_weights(i,j) / weight_scale));
+      else if(dest_weights(i,j) < 0)
+        maskImg.setPixel(i, j, qRgba( dest_weights(i,j) / -weight_scale, 0, 0, dest_weights(i,j) / -weight_scale));
     }
   }
   _maskPix = QPixmap::fromImage(maskImg);
@@ -463,6 +529,7 @@ void MainWindow::cairRemove()
   _scaleFactor = 1.0;
   _resizeWidget.heightLineEdit->setText(QString::number(_img.height()));  
   _resizeWidget.widthLineEdit->setText(QString::number(_img.width()));
+  addToUndoStack(); //New image
 }
 
 void MainWindow::cairResize(int newWidth, int newHeight)
@@ -479,6 +546,13 @@ void MainWindow::cairResize(int newWidth, int newHeight)
     case 3 : conv = SOBEL; break;
     case 4 : conv = LAPLACIAN; break;
   }
+
+  CAIR_energy ener = BACKWARD;
+  if( _resizeWidget.energyCheckBox->isChecked() )
+  {
+    ener = FORWARD;
+  }
+
   if(newWidth < 1 || newHeight < 1)
   {
     QMessageBox::information(this, tr("Seam Carving GUI"),
@@ -496,8 +570,9 @@ void MainWindow::cairResize(int newWidth, int newHeight)
   
   //Transfer the image over to cair image format.
   CML_color source(width, height);
-  CML_color dest(width, height);  
-  CML_int weights(width, height);
+  CML_color dest(1, 1);  
+  CML_int source_weights(width, height);
+  CML_int dest_weights(1,1);
   QImagetoCML(_img,source);
   QImage mskImg = _maskPix.toImage();
   for( int j=0; j<height; j++ )
@@ -506,27 +581,27 @@ void MainWindow::cairResize(int newWidth, int newHeight)
     {
       QRgb m = mskImg.pixel(i,j);
       if(qGreen(m) > 0)
-        weights(i,j) = (int)(qGreen(m) * weight_scale);
+        source_weights(i,j) = (int)(qGreen(m) * weight_scale);
       else if(qRed(m) > 0)
-        weights(i,j) = (int)(qRed(m) * -weight_scale);
+        source_weights(i,j) = (int)(qRed(m) * -weight_scale);
       else
-        weights(i,j) = 0;
+        source_weights(i,j) = 0;
     }
   }
   //Call CAIR
   int add_weight = _resizeWidget.addWeightLineEdit->text().toInt();
   if( !_resizeWidget.hdCheckBox->isChecked() )
   {
-    CAIR( &source, &weights, newWidth, newHeight, add_weight, conv, &dest, updateCallback );
+    CAIR( &source, &source_weights, newWidth, newHeight, add_weight, conv, ener, &dest_weights, &dest, updateCallback );
   }
   else
   {
-    CAIR_HD( &source, &weights, newWidth, newHeight, add_weight, conv, &dest, updateCallback );
+    CAIR_HD( &source, &source_weights, newWidth, newHeight, add_weight, conv, ener, &dest_weights, &dest, updateCallback );
   }
   if(prog.wasCanceled())
     return;
   QImage newImg = CMLtoQImage(dest);
-  addToUndoStack(newImg);
+  saveInUndoStack();
   _img = newImg;
   _imgItem->setPixmap(QPixmap::fromImage(_img));
   //Set the weight mask to the now reduced size version shrunk by CAIR
@@ -536,15 +611,16 @@ void MainWindow::cairResize(int newWidth, int newHeight)
   {
     for( int i=0; i<_img.width(); i++ )
     {
-      if(weights(i,j) > 0)
-        maskImg.setPixel(i, j, qRgba( 0, weights(i,j) / weight_scale, 0, weights(i,j) / weight_scale));
-      else if(weights(i,j) < 0)
-        maskImg.setPixel(i, j, qRgba( weights(i,j) / -weight_scale, 0, 0, weights(i,j) / -weight_scale));
+      if(dest_weights(i,j) > 0)
+        maskImg.setPixel(i, j, qRgba( 0, dest_weights(i,j) / weight_scale, 0, dest_weights(i,j) / weight_scale));
+      else if(dest_weights(i,j) < 0)
+        maskImg.setPixel(i, j, qRgba( dest_weights(i,j) / -weight_scale, 0, 0, dest_weights(i,j) / -weight_scale));
     }
   }
   _maskPix = QPixmap::fromImage(maskImg);
   _maskItem->setPixmap(_maskPix);
   _scaleFactor = 1.0;
+  addToUndoStack(); //new image
 }
 
 void MainWindow::clearMask()
@@ -560,13 +636,13 @@ void MainWindow::paintMask(QPointF oldPos, QPointF newPos)
   QPainter painter(&_maskPix);
   if(_resizeWidget.clearRadio->isChecked())
   {
-    painter.setPen(QPen( QBrush(Qt::transparent), _resizeWidget.brushSizeSlider->value(), Qt::SolidLine, Qt::RoundCap) );
+    painter.setPen(QPen( QBrush(Qt::transparent), _resizeWidget.brushSizeSlider->value() / _scaleFactor, Qt::SolidLine, Qt::RoundCap) );
     painter.setCompositionMode(QPainter::CompositionMode_Clear);
   }else
   {
     QColor penColor(_resizeWidget.retainRadio->isChecked() ? Qt::green : Qt::red);
     penColor.setAlpha( int(255 * (_resizeWidget.brushWeightSlider->value() / 180.0)) );
-    painter.setPen(QPen( QBrush(penColor), _resizeWidget.brushSizeSlider->value(), Qt::SolidLine, Qt::RoundCap) );
+    painter.setPen(QPen( QBrush(penColor), _resizeWidget.brushSizeSlider->value() / _scaleFactor, Qt::SolidLine, Qt::RoundCap) );
   }
   painter.drawLine(oldPos, newPos);
   _maskItem->setPixmap(_maskPix);
@@ -639,14 +715,19 @@ void MainWindow::changeView(QAction *view)
     case 3 : conv = SOBEL; break;
     case 4 : conv = LAPLACIAN; break;
   }
+  CAIR_energy ener = BACKWARD;
+  if( _resizeWidget.energyCheckBox->isChecked() )
+  {
+    ener = FORWARD;
+  }
   if(view == _viewGreyscale)
     CAIR_Grayscale( &source, &dest );
   if(view == _viewEdge)
     CAIR_Edge( &source, conv, &dest );
   if(view == _viewVEnergy)
-    CAIR_V_Energy( &source, conv, &dest );
+    CAIR_V_Energy( &source, conv, ener, &dest );
   if(view == _viewHEnergy)
-    CAIR_H_Energy( &source, conv, &dest );
+    CAIR_H_Energy( &source, conv, ener, &dest );
   _imgItem->setPixmap(QPixmap::fromImage(CMLtoQImage(dest)));
 }
 
@@ -669,16 +750,24 @@ void MainWindow::updateCursor()
 void MainWindow::createActions()
 {
   _openAct = new QAction(tr("&Open..."), this);
-  _openAct->setShortcut(tr("Ctrl+O"));
+  _openAct->setShortcut(QKeySequence::Open);
   connect(_openAct, SIGNAL(triggered()), this, SLOT(open()));
 
   _saveAct = new QAction(tr("&Save..."), this);
-  _saveAct->setShortcut(tr("Ctrl+S"));
+  _saveAct->setShortcut(QKeySequence::Save);
   _saveAct->setEnabled(false);
   connect(_saveAct, SIGNAL(triggered()), this, SLOT(save()));
-    
+
+  _openMaskAct = new QAction(tr("&Open Mask..."), this);
+  _openMaskAct->setEnabled(false);
+  connect(_openMaskAct, SIGNAL(triggered()), this, SLOT(openMask()));
+
+  _saveMaskAct = new QAction(tr("&Save Mask..."), this);
+  _saveMaskAct->setEnabled(false);
+  connect(_saveMaskAct, SIGNAL(triggered()), this, SLOT(saveMask()));
+  
   _printAct = new QAction(tr("&Print..."), this);
-  _printAct->setShortcut(tr("Ctrl+R"));
+  _printAct->setShortcut(QKeySequence::Print);
   _printAct->setEnabled(false);
   connect(_printAct, SIGNAL(triggered()), this, SLOT(print()));
 
@@ -687,22 +776,22 @@ void MainWindow::createActions()
   connect(_exitAct, SIGNAL(triggered()), this, SLOT(close()));
 
   _undoAct = new QAction(tr("&Undo"), this);
-  _undoAct->setShortcut(tr("Ctrl+Z"));
+  _undoAct->setShortcut(QKeySequence::Undo);
   _undoAct->setEnabled(false);
   connect(_undoAct, SIGNAL(triggered()), this, SLOT(undo()));
 
-  _repeatAct = new QAction(tr("&Repeat"), this);
-  _repeatAct->setShortcut(tr("Ctrl+Y"));
+  _repeatAct = new QAction(tr("&Redo"), this);
+  _repeatAct->setShortcut(QKeySequence::Redo);
   _repeatAct->setEnabled(false);
   connect(_repeatAct, SIGNAL(triggered()), this, SLOT(repeat()));
   
   _copyAct = new QAction(tr("&Copy"), this);
-  _copyAct->setShortcut(tr("Ctrl+C"));
+  _copyAct->setShortcut(QKeySequence::Copy);
   _copyAct->setEnabled(false);
   connect(_copyAct, SIGNAL(triggered()), this, SLOT(copy()));
 
   _pasteAct = new QAction(tr("&Paste"), this);
-  _pasteAct->setShortcut(tr("Ctrl+V"));
+  _pasteAct->setShortcut(QKeySequence::Paste);
   connect(_pasteAct, SIGNAL(triggered()), this, SLOT(paste()));
 
   _viewImage = new QAction(tr("View Image"), this);
@@ -735,16 +824,12 @@ void MainWindow::createActions()
   _viewImage->setChecked(true);
   
   _zoomInAct = new QAction(tr("Zoom &In (25%)"), this);
-  QList<QKeySequence> inSc;
-  inSc << tr("Ctrl++") << tr("Ctrl+=") ;
-  _zoomInAct->setShortcuts(inSc);
+  _zoomInAct->setShortcut(QKeySequence::ZoomIn);
   _zoomInAct->setEnabled(false);
   connect(_zoomInAct, SIGNAL(triggered()), this, SLOT(zoomIn()));
 
   _zoomOutAct = new QAction(tr("Zoom &Out (25%)"), this);
-  QList<QKeySequence> outSc;
-  outSc << tr("Ctrl+-") << tr("Ctrl+_");
-  _zoomOutAct->setShortcuts(outSc);
+  _zoomOutAct->setShortcut(QKeySequence::ZoomOut);
   _zoomOutAct->setEnabled(false);
   connect(_zoomOutAct, SIGNAL(triggered()), this, SLOT(zoomOut()));
 
@@ -753,7 +838,8 @@ void MainWindow::createActions()
   _normalSizeAct->setEnabled(false);
   connect(_normalSizeAct, SIGNAL(triggered()), this, SLOT(normalSize()));
 
-  _aboutAct = new QAction(tr("&About"), this);
+  _aboutAct = new QAction(tr("&About Seam Carving Gui"), this);
+  _aboutAct->setShortcut(QKeySequence::HelpContents);
   connect(_aboutAct, SIGNAL(triggered()), this, SLOT(about()));
 }
 
@@ -761,7 +847,9 @@ void MainWindow::createMenus()
 {
   _fileMenu = new QMenu(tr("&File"), this);
   _fileMenu->addAction(_openAct);
-  _fileMenu->addAction(_saveAct);    
+  _fileMenu->addAction(_saveAct);
+  _fileMenu->addAction(_openMaskAct);  
+  _fileMenu->addAction(_saveMaskAct);
   _fileMenu->addAction(_printAct);
   _fileMenu->addSeparator();
   _fileMenu->addAction(_exitAct);
@@ -786,6 +874,7 @@ void MainWindow::createMenus()
   _viewMenu->addSeparator();
 
   _helpMenu = new QMenu(tr("&Help"), this);
+  _helpMenu->addAction("About Qt", qApp, SLOT(aboutQt()));
   _helpMenu->addAction(_aboutAct);
 
   menuBar()->addMenu(_fileMenu);
@@ -819,11 +908,29 @@ void MainWindow::adjustScrollBar(QScrollBar *scrollBar, double factor)
                           + ((factor - 1) * scrollBar->pageStep()/2)));
 }
 
-void MainWindow::addToUndoStack(QImage img)
+void MainWindow::saveInUndoStack()
+{
+  if(_undoStackImg.size() < _undoStackPos+1 )
+  {
+    _undoStackImg.resize(_undoStackPos+1);
+    _undoStackMask.resize(_undoStackPos+1);
+  }
+  _undoStackImg[_undoStackPos] = _img;
+  _undoStackMask[_undoStackPos] = _maskPix;
+  _undoAct->setEnabled( _undoStackPos > 0 );
+  _repeatAct->setEnabled( _undoStackPos < _undoStackImg.size()-1 );
+}
+
+void MainWindow::addToUndoStack()
 {
   _undoStackPos++;
-  _undoStack.resize(_undoStackPos + 1);
-  _undoStack[_undoStackPos] = img;
-  _undoAct->setEnabled( _undoStackPos > 1 );
-  _repeatAct->setEnabled( _undoStackPos < _undoStack.size()-1 );
+  if(_undoStackImg.size() < _undoStackPos+1 )
+  {
+    _undoStackImg.resize(_undoStackPos+1);
+    _undoStackMask.resize(_undoStackPos+1);
+  }
+  _undoStackImg[_undoStackPos] = _img;
+  _undoStackMask[_undoStackPos] = _maskPix;
+  _undoAct->setEnabled( _undoStackPos > 0 );
+  _repeatAct->setEnabled( _undoStackPos < _undoStackImg.size()-1 );
 }

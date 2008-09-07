@@ -1,35 +1,38 @@
 #ifndef CAIR_CML_H
 #define CAIR_CML_H
 
+//=========================================================================================================//
 //CAIR Matrix Library
 //Copyright (C) 2007 Joseph Auman (brain.recall@gmail.com)
-//http://brain.recall.googlepages.com/cair
 
-//This program is free software: you can redistribute it and/or modify
-//it under the terms of the GNU General Public License as published by
-//the Free Software Foundation, either version 3 of the License, or
-//(at your option) any later version.
-//This program is distributed in the hope that it will be useful,
+//=========================================================================================================//
+//This library is free software; you can redistribute it and/or
+//modify it under the terms of the GNU Lesser General Public
+//License as published by the Free Software Foundation; either
+//version 2.1 of the License, or (at your option) any later version.
+//This library is distributed in the hope that it will be useful,
 //but WITHOUT ANY WARRANTY; without even the implied warranty of
-//MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-//GNU General Public License for more details.
-//You should have received a copy of the GNU General Public License
-//along with this program.  If not, see <http://www.gnu.org/licenses/>.
+//MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+//Lesser General Public License for more details.
+//You should have received a copy of the GNU Lesser General Public
+//License along with this library; if not, write to the Free Software
+//Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
+//=========================================================================================================//
 //This class will be used to handle and manage all matrix types used in CAIR.
 //For grayscale images, use the type CML_gray.
 //For standard color images, use the type CML_color.
 //For energy, edges, and weights, use the type CML_int.
-//This class is used to replace and consolidate the several types I had prevously maintained seperately.
+//This class is used to replace and consolidate the several types I had prevously maintained separately.
 
-//Note for developers: Unfortunetly, this class means that a seperate translation function will need
+//Note for developers: Unfortunately, this class means that a separate translation function will need
 //	to be written to translate from whatever internal image object to the CML_Matrix. This will keep CAIR
-//	more flexable, but adds another small step.
+//	more flexible, but adds another small step.
+//=========================================================================================================//
 
-#include <limits>
 
-using namespace std;
-
+//CML_DEBUG will print out information to the console window when CAIR tries
+// to step out-of-bounds of the matrix. For development purposes.
 //#define CML_DEBUG
 #ifdef CML_DEBUG
 #include <iostream>
@@ -45,17 +48,12 @@ struct CML_RGBA
 	CML_byte alpha;
 };
 
-//used for the Get() method.
-//MAX will return the integer maximum value if out of bounds, used only for integer types.
-//ZERO will return zero if out of bounds, also for integer types.
-//For all other types DON'T use Get() with the CML_Bounds parameter. Either use Get(int x, int y)
-//only if you are aware of its operation, or just use the () operators if you can't go out-of-bounds.
-enum CML_bounds { MAX, ZERO };
-
+//=========================================================================================================//
 template <typename T>
 class CML_Matrix
 {
 public:
+	//=========================================================================================================//
 	//Simple constructor.
 	CML_Matrix( int x, int y )
 	{
@@ -65,12 +63,14 @@ public:
 		max_x = x;
 		max_y = y;
 	}
+	//=========================================================================================================//
 	//Simple destructor.
 	~CML_Matrix()
 	{
 		Deallocate_Matrix();
 	}
 
+	//=========================================================================================================//
 	//Assignment operator; not really fast, but it works reasonably well.
 	//Does not copy Reserve()'ed memory.
 	CML_Matrix& operator= ( const CML_Matrix& input )
@@ -94,6 +94,7 @@ public:
 		return *this;
 	}
 
+	//=========================================================================================================//
 	//Set all values.
 	//This is important to do since the memory is not set a value after it is allocated.
 	//Make sure to do this for the weights.
@@ -108,14 +109,15 @@ public:
 		}
 	}
 
+	//=========================================================================================================//
 	//For the access/assignment () calls.
 	inline T& operator()( int x, int y )
 	{
 #ifdef CML_DEBUG
 		if( x<0 || x>=current_x || y<0 || y>=current_y )
 		{
-			cout << "CML_DEBUG: " << x << "," << y << endl;
-			cout << "current_x=" << current_x << " current_y=" << current_y << endl;
+			std::cout << "CML_DEBUG: " << x << "," << y << std::endl;
+			std::cout << "current_x=" << current_x << " current_y=" << current_y << std::endl;
 		}
 #endif
 		return matrix[y][x]; //remember, ROW MAJOR
@@ -133,6 +135,7 @@ public:
 		return current_y;
 	}
 
+	//=========================================================================================================//
 	//Does a flip/rotate on Source and stores it into ourself.
 	void Transpose( CML_Matrix<T> * Source )
 	{
@@ -147,8 +150,9 @@ public:
 		}
 	}
 
+	//=========================================================================================================//
 	//Mimics the EasyBMP () operation, by constraining an out-of-bounds value back into the matrix.
-	T Get( int x, int y )
+	inline T Get( int x, int y )
 	{
 		if( x < 0 )
 		{
@@ -169,36 +173,7 @@ public:
 		return matrix[y][x]; //remember, ROW MAJOR
 	}
 
-	//Return a very large value or zero if out-of-bounds in the x direction.
-	//Only intended for integer types!!
-	//Use for now, but later optimize so this isn't required.
-	T Get( int x, int y, CML_bounds clip_type )
-	{
-		switch( clip_type )
-		{
-		case MAX:
-			if( ( x < 0 ) || ( x >= current_x ) )
-			{
-				return numeric_limits<int>::max();
-			}
-			else
-			{
-				return matrix[y][x]; //remember, ROW MAJOR
-			}
-		case ZERO:
-			if( ( x < 0 ) || ( x >= current_x ) )
-			{
-				return 0;
-			}
-			else
-			{
-				return matrix[y][x]; //remember, ROW MAJOR
-			}
-		default:
-			return 0;
-		};
-	}
-
+	//=========================================================================================================//
 	//Destructive resize of the matrix.
 	void D_Resize( int x, int y )
 	{
@@ -210,6 +185,7 @@ public:
 		max_y = y;
 	}
 
+	//=========================================================================================================//
 	//Non-destructive resize, but only in the x direction.
 	//Enlarging requires memory to be Reserve()'ed beforehand, for speed reasons.
 	void Resize_Width( int x )
@@ -226,6 +202,7 @@ public:
 		current_x = x;
 	}
 
+	//=========================================================================================================//
 	//Destructive memory reservation for the internal matrix.
 	//The reported size of the image does not change.
 	void Reserve( int x, int y )
@@ -238,6 +215,7 @@ public:
 		//current_x and y didn't change
 	}
 
+	//=========================================================================================================//
 	//Shift a row where the first element in the shift is supplied as x,y.
 	//The amount/direction of the shift is supplied in shift.
 	//Negative will shift left, positive right.
@@ -291,6 +269,7 @@ public:
 	}
 
 private:
+	//=========================================================================================================//
 	//Simple row-major 2D allocation algorithm.
 	//The size variables must be assigned seperately.
 	void Allocate_Matrix( int x, int y )
@@ -306,7 +285,7 @@ private:
 	//Doest not maintain size variables.
 	void Deallocate_Matrix()
 	{
-		for( int i = 0; i < current_y; i++ )
+		for( int i = 0; i < max_y; i++ )
 		{
 			delete[] matrix[i];
 		}
@@ -321,9 +300,10 @@ private:
 	int max_y;
 };
 
+//=========================================================================================================//
 //typedef'ing to make it a little cleaner
 typedef CML_Matrix<CML_RGBA> CML_color;
 typedef CML_Matrix<CML_byte> CML_gray;
 typedef CML_Matrix<int> CML_int;
 
-#endif
+#endif //CAIR_CML_H
