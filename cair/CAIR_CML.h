@@ -3,7 +3,7 @@
 
 //=========================================================================================================//
 //CAIR Matrix Library
-//Copyright (C) 2007 Joseph Auman (brain.recall@gmail.com)
+//Copyright (C) 2008 Joseph Auman (brain.recall@gmail.com)
 
 //=========================================================================================================//
 //This library is free software; you can redistribute it and/or
@@ -30,6 +30,8 @@
 //	more flexible, but adds another small step.
 //=========================================================================================================//
 
+#include <cstring> //for memcpy(), memmove()
+#include <cstdlib> //for realloc()
 
 //CML_DEBUG will print out information to the console window when CAIR tries
 // to step out-of-bounds of the matrix. For development purposes.
@@ -89,7 +91,7 @@ public:
 		for( int y = 0; y < current_y; y++ )
 		{
 			//ahh, memcpy(), how I love thee
-			memcpy( &(matrix[y][0]), &(input.matrix[y][0]), current_x*sizeof(T) );
+			std::memcpy( &(matrix[y][0]), &(input.matrix[y][0]), current_x*sizeof(T) );
 		}
 		return *this;
 	}
@@ -195,7 +197,7 @@ public:
 			//a graceful, slow, way to handle when someone screws up
 			for( int i = 0; i < current_y; i++ )
 			{
-				matrix[i] = (T*)realloc( matrix[i], x*sizeof(T) );
+				matrix[i] = (T*)std::realloc( matrix[i], x*sizeof(T) );
 			}
 			max_x = x;
 		}
@@ -265,7 +267,7 @@ public:
 		}
 
 		//memmove because this WILL overlap
-		memmove( &(matrix[y][x_shift]), &(matrix[y][x]), shift_amount*sizeof(T) );
+		std::memmove( &(matrix[y][x_shift]), &(matrix[y][x]), shift_amount*sizeof(T) );
 	}
 
 private:

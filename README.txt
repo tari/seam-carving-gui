@@ -23,6 +23,9 @@ Joe and adding features and documentation as requested from users came
 in.
 
 == Version History ==
+1.10
+ * Update to latest CAIR 2.17 with speed improvements (Brain_ReCall)
+ * Update progress bars to use new CAIR callbacks. (Gabe)
 
 1.9
  * Update to latest CAIR 2.15.1 (Brain_ReCall)
@@ -98,6 +101,8 @@ installer). Then run the following commands:
 The executable will be placed in the "release" directory. Copy
 mingwm10.dll and pthreadVSE2.dll into the same directory to be self
 contained.
+
+Note: Under linux, your qmake make be named qmake-qt4
 
 == A Little Wrap Up ==
 

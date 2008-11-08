@@ -31,13 +31,13 @@
 #define MAX_ATTEMPTS 5
 
 QProgressDialog *gProg;
-int updateCallback(int)
+bool updateCallback(float percDone)
 {
   qApp->processEvents();
-  gProg->setValue(gProg->value()+1);
+  gProg->setValue((int)(percDone*100));
   if(gProg->wasCanceled())
-    return 0; //false, exit out
-  return 1;
+    return false; //exit out
+  return true;
 }
 
 //assumes dest is already set to have the save size as source
@@ -498,7 +498,7 @@ void MainWindow::cairRemove()
     return;
   }
 
-  QProgressDialog prog("Removing...", "&Cancel", 0, total_time, this);
+  QProgressDialog prog("Removing...", "&Cancel", 0, 100, this);
   gProg = &prog;
   qApp->processEvents();
 
@@ -562,9 +562,9 @@ void MainWindow::cairResize(int newWidth, int newHeight)
   if(width == newWidth && height == newHeight)
     return;
 
-  int widthAdjustment = (width < newWidth ? newWidth - width : width - newWidth);
-  int heightAdjustment = (height < newHeight ? newHeight - height : height - newHeight);
-  QProgressDialog prog("Resizing...", "&Cancel", 0, widthAdjustment + heightAdjustment, this);
+  //int widthAdjustment = (width < newWidth ? newWidth - width : width - newWidth);
+  //int heightAdjustment = (height < newHeight ? newHeight - height : height - newHeight);
+  QProgressDialog prog("Resizing...", "&Cancel", 0, 100, this);
   gProg = &prog;
   qApp->processEvents();
   
