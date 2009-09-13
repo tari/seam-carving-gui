@@ -23,6 +23,12 @@ Joe and adding features and documentation as requested from users came
 in.
 
 == Version History ==
+1.11
+ * Update to latest CAIR 2.19 (Brain_ReCall)
+ * Twice as fast (Brain_ReCall)
+ * Removed add weight parameter (Brain_ReCall)
+ * Update build to Qt 4.5 with MSVC (Gabe)
+
 1.10
  * Update to latest CAIR 2.17 with speed improvements (Brain_ReCall)
  * Update progress bars to use new CAIR callbacks. (Gabe)

@@ -1,7 +1,7 @@
-// Copyright (C) 2008  Gabe Rudy
-// 
+// Copyright (C) 2009  Gabe Rudy
+//
 // This program is free software; you can redistribute it and/or modify
-// it under the terms of the GNU General Public License version 2 as 
+// it under the terms of the GNU General Public License version 2 as
 // published by the Free Software Foundation.
 //
 // This program is distributed in the hope that it will be useful,
@@ -131,7 +131,6 @@ MainWindow::MainWindow()
   QIntValidator *validator = new QIntValidator(1, 2000000, holderWidget);
   _resizeWidget.widthLineEdit->setValidator(validator);
   _resizeWidget.heightLineEdit->setValidator(validator);
-  _resizeWidget.addWeightLineEdit->setValidator(validator);
   _resizeWidget.weightScaleLineEdit->setValidator(validator);
   connect(_resizeWidget.resizeButton, SIGNAL(clicked()), this, SLOT(resizeButtonClicked()));
   connect(_resizeWidget.removeButton, SIGNAL(clicked()), this, SLOT(removeButtonClicked()));
@@ -144,10 +143,6 @@ MainWindow::MainWindow()
   _viewMenu->addAction(_resizeDock->toggleViewAction());
   _resizeDock->setEnabled(false);
 
-  QString addWeightToolTip = tr(
-    "How much artificial weight is applied to new seams during enlarging. Too\n"
-    "small and it will cause stretching, too large and it may start inserting\n"
-    "into areas marked for protection.");
   QString weightScaleToolTip = tr(
     "The maximum possible weight value applied for protection/removal. This\n"
     "value determines what the Brush Weight slider uses for its max value.");
@@ -166,8 +161,6 @@ MainWindow::MainWindow()
     "Resize the image in one dimension to remove all the areas marked for\n"
     "removal and then resize the image back to its original dimensions.");
     
-  _resizeWidget.addWeightLabel->setToolTip(addWeightToolTip);
-  _resizeWidget.addWeightLineEdit->setToolTip(addWeightToolTip);
   _resizeWidget.weightScaleLabel->setToolTip(weightScaleToolTip);
   _resizeWidget.weightScaleLineEdit->setToolTip(weightScaleToolTip);
   _resizeWidget.iterateCheckBox->setToolTip(iterateToolTip);
@@ -422,7 +415,7 @@ void MainWindow::cairRemove()
 
   //Transfer the image over to cair image format.
   CML_color source(width, height);
-  CML_color dest(1,1);  
+  CML_color dest(1,1);
   CML_int source_weights(width, height);
   CML_int dest_weights(1,1);
   QImagetoCML(_img,source);
@@ -503,8 +496,7 @@ void MainWindow::cairRemove()
   qApp->processEvents();
 
   //Call CAIR
-  int add_weight = _resizeWidget.addWeightLineEdit->text().toInt();
-  CAIR_Removal( &source, &source_weights, choice, attempts, add_weight, conv, ener, &dest_weights, &dest, updateCallback );
+  CAIR_Removal( &source, &source_weights, choice, attempts, conv, ener, &dest_weights, &dest, updateCallback );
   if(prog.wasCanceled())
     return;
   QImage newImg = CMLtoQImage(dest);
@@ -527,7 +519,7 @@ void MainWindow::cairRemove()
   _maskPix = QPixmap::fromImage(maskImg);
   _maskItem->setPixmap(_maskPix);
   _scaleFactor = 1.0;
-  _resizeWidget.heightLineEdit->setText(QString::number(_img.height()));  
+  _resizeWidget.heightLineEdit->setText(QString::number(_img.height()));
   _resizeWidget.widthLineEdit->setText(QString::number(_img.width()));
   addToUndoStack(); //New image
 }
@@ -570,7 +562,7 @@ void MainWindow::cairResize(int newWidth, int newHeight)
   
   //Transfer the image over to cair image format.
   CML_color source(width, height);
-  CML_color dest(1, 1);  
+  CML_color dest(1, 1);
   CML_int source_weights(width, height);
   CML_int dest_weights(1,1);
   QImagetoCML(_img,source);
@@ -589,14 +581,13 @@ void MainWindow::cairResize(int newWidth, int newHeight)
     }
   }
   //Call CAIR
-  int add_weight = _resizeWidget.addWeightLineEdit->text().toInt();
   if( !_resizeWidget.hdCheckBox->isChecked() )
   {
-    CAIR( &source, &source_weights, newWidth, newHeight, add_weight, conv, ener, &dest_weights, &dest, updateCallback );
+    CAIR( &source, &source_weights, newWidth, newHeight, conv, ener, &dest_weights, &dest, updateCallback );
   }
   else
   {
-    CAIR_HD( &source, &source_weights, newWidth, newHeight, add_weight, conv, ener, &dest_weights, &dest, updateCallback );
+    CAIR_HD( &source, &source_weights, newWidth, newHeight, conv, ener, &dest_weights, &dest, updateCallback );
   }
   if(prog.wasCanceled())
     return;
@@ -796,12 +787,12 @@ void MainWindow::createActions()
 
   _viewImage = new QAction(tr("View Image"), this);
   _viewImage->setShortcut(tr("Ctrl+I"));
-  _viewImage->setCheckable(true); 
-  _viewImage->setEnabled(false);  
+  _viewImage->setCheckable(true);
+  _viewImage->setEnabled(false);
   _viewGreyscale = new QAction(tr("View Greyscale"), this);
   _viewGreyscale->setShortcut(tr("Ctrl+G"));
   _viewGreyscale->setCheckable(true);
-  _viewGreyscale->setEnabled(false);  
+  _viewGreyscale->setEnabled(false);
   _viewEdge = new QAction(tr("View Edge"), this);
   _viewEdge->setShortcut(tr("Ctrl+E"));
   _viewEdge->setCheckable(true);
@@ -819,7 +810,7 @@ void MainWindow::createActions()
   _viewGroup->addAction(_viewGreyscale);
   _viewGroup->addAction(_viewEdge);
   _viewGroup->addAction(_viewVEnergy);
-  _viewGroup->addAction(_viewHEnergy);  
+  _viewGroup->addAction(_viewHEnergy);
   connect(_viewGroup, SIGNAL(triggered(QAction*)), this, SLOT(changeView(QAction*)));
   _viewImage->setChecked(true);
   
@@ -848,7 +839,7 @@ void MainWindow::createMenus()
   _fileMenu = new QMenu(tr("&File"), this);
   _fileMenu->addAction(_openAct);
   _fileMenu->addAction(_saveAct);
-  _fileMenu->addAction(_openMaskAct);  
+  _fileMenu->addAction(_openMaskAct);
   _fileMenu->addAction(_saveMaskAct);
   _fileMenu->addAction(_printAct);
   _fileMenu->addSeparator();
@@ -856,10 +847,10 @@ void MainWindow::createMenus()
 
   _editMenu = new QMenu(tr("&Edit"), this);
   _editMenu->addAction(_undoAct);
-  _editMenu->addAction(_repeatAct);    
+  _editMenu->addAction(_repeatAct);
   _editMenu->addSeparator();
   _editMenu->addAction(_copyAct);
-  _editMenu->addAction(_pasteAct);    
+  _editMenu->addAction(_pasteAct);
 
   _viewMenu = new QMenu(tr("&View"), this);
   _viewMenu->addAction(_viewImage);
@@ -895,7 +886,7 @@ void MainWindow::scaleImage(double factor)
   adjustScrollBar(_view->horizontalScrollBar(), factor);
   adjustScrollBar(_view->verticalScrollBar(), factor);
 
-  _scaleFactor *= factor;  
+  _scaleFactor *= factor;
   _view->scale(factor, factor);
 
   _zoomInAct->setEnabled(_scaleFactor < 3.0);

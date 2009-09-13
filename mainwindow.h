@@ -37,17 +37,17 @@ public:
 private slots:
   void open();
   void save();
-  void openMask();  
+  void openMask();
   void saveMask();
   void undo();
-  void repeat();  
+  void repeat();
   void copy();
-  void paste();  
+  void paste();
   void print();
   void resizeButtonClicked();
   void removeButtonClicked();
   void cairRemove();
-  void cairResize(int newWidth, int newHeight);  
+  void cairResize(int newWidth, int newHeight);
   void clearMask();
   void paintMask(QPointF oldPos, QPointF newPos);
   void zoomIn();
@@ -91,7 +91,7 @@ private:
 
   QAction *_openAct;
   QAction *_saveAct;
-  QAction *_openMaskAct;  
+  QAction *_openMaskAct;
   QAction *_saveMaskAct;
   QAction *_printAct;
   QAction *_exitAct;
@@ -103,15 +103,15 @@ private:
   QAction *_viewGreyscale;
   QAction *_viewEdge;
   QAction *_viewVEnergy;
-  QAction *_viewHEnergy;  
-  QActionGroup *_viewGroup; 
+  QAction *_viewHEnergy;
+  QActionGroup *_viewGroup;
   QAction *_zoomInAct;
   QAction *_zoomOutAct;
   QAction *_normalSizeAct;
   QAction *_aboutAct;
 
   QMenu *_fileMenu;
-  QMenu *_editMenu;  
+  QMenu *_editMenu;
   QMenu *_viewMenu;
   QMenu *_helpMenu;
 };

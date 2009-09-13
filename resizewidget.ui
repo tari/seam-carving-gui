@@ -1,153 +1,154 @@
-<ui version="4.0" >
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
  <class>ResizeWidget</class>
- <widget class="QWidget" name="ResizeWidget" >
-  <property name="geometry" >
+ <widget class="QWidget" name="ResizeWidget">
+  <property name="geometry">
    <rect>
     <x>0</x>
     <y>0</y>
     <width>315</width>
-    <height>702</height>
+    <height>583</height>
    </rect>
   </property>
-  <property name="sizePolicy" >
-   <sizepolicy vsizetype="Fixed" hsizetype="Fixed" >
+  <property name="sizePolicy">
+   <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
     <horstretch>0</horstretch>
     <verstretch>0</verstretch>
    </sizepolicy>
   </property>
-  <property name="windowTitle" >
+  <property name="windowTitle">
    <string>Form</string>
   </property>
-  <layout class="QVBoxLayout" >
-   <property name="spacing" >
+  <layout class="QVBoxLayout">
+   <property name="spacing">
     <number>6</number>
    </property>
-   <property name="margin" >
+   <property name="margin">
     <number>9</number>
    </property>
    <item>
-    <widget class="QGroupBox" name="groupBox_2" >
-     <property name="title" >
+    <widget class="QGroupBox" name="groupBox_2">
+     <property name="title">
       <string>Retain/Remove</string>
      </property>
-     <layout class="QVBoxLayout" >
-      <property name="spacing" >
+     <layout class="QVBoxLayout">
+      <property name="spacing">
        <number>6</number>
       </property>
-      <property name="margin" >
+      <property name="margin">
        <number>6</number>
       </property>
       <item>
-       <widget class="QGroupBox" name="groupBox_4" >
-        <property name="title" >
+       <widget class="QGroupBox" name="groupBox_4">
+        <property name="title">
          <string>Mark Areas with Mouse</string>
         </property>
-        <layout class="QGridLayout" >
-         <property name="margin" >
+        <layout class="QGridLayout">
+         <property name="margin">
           <number>9</number>
          </property>
-         <property name="spacing" >
+         <property name="spacing">
           <number>6</number>
          </property>
-         <item row="3" column="2" >
-          <widget class="QSlider" name="brushSizeSlider" >
-           <property name="minimum" >
+         <item row="3" column="2">
+          <widget class="QSlider" name="brushSizeSlider">
+           <property name="minimum">
             <number>3</number>
            </property>
-           <property name="maximum" >
+           <property name="maximum">
             <number>63</number>
            </property>
-           <property name="singleStep" >
+           <property name="singleStep">
             <number>4</number>
            </property>
-           <property name="pageStep" >
+           <property name="pageStep">
             <number>8</number>
            </property>
-           <property name="value" >
+           <property name="value">
             <number>15</number>
            </property>
-           <property name="sliderPosition" >
+           <property name="sliderPosition">
             <number>15</number>
            </property>
-           <property name="orientation" >
+           <property name="orientation">
             <enum>Qt::Horizontal</enum>
            </property>
           </widget>
          </item>
-         <item row="0" column="0" colspan="3" >
-          <widget class="QRadioButton" name="retainRadio" >
-           <property name="text" >
+         <item row="0" column="0" colspan="3">
+          <widget class="QRadioButton" name="retainRadio">
+           <property name="text">
             <string>Mark area for retaining</string>
            </property>
-           <property name="checked" >
+           <property name="checked">
             <bool>true</bool>
            </property>
           </widget>
          </item>
-         <item row="4" column="0" >
-          <widget class="QLabel" name="label_2" >
-           <property name="text" >
+         <item row="4" column="0">
+          <widget class="QLabel" name="label_2">
+           <property name="text">
             <string>Brush Weight:</string>
            </property>
           </widget>
          </item>
-         <item row="3" column="0" colspan="2" >
-          <widget class="QLabel" name="label" >
-           <property name="text" >
+         <item row="3" column="0" colspan="2">
+          <widget class="QLabel" name="label">
+           <property name="text">
             <string>Brush Size:</string>
            </property>
           </widget>
          </item>
-         <item row="1" column="0" colspan="3" >
-          <widget class="QRadioButton" name="removeRadio" >
-           <property name="text" >
+         <item row="1" column="0" colspan="3">
+          <widget class="QRadioButton" name="removeRadio">
+           <property name="text">
             <string>Mark area for removal</string>
            </property>
           </widget>
          </item>
-         <item row="4" column="1" colspan="2" >
-          <widget class="QSlider" name="brushWeightSlider" >
-           <property name="minimum" >
+         <item row="4" column="1" colspan="2">
+          <widget class="QSlider" name="brushWeightSlider">
+           <property name="minimum">
             <number>1</number>
            </property>
-           <property name="maximum" >
+           <property name="maximum">
             <number>100</number>
            </property>
-           <property name="singleStep" >
+           <property name="singleStep">
             <number>5</number>
            </property>
-           <property name="pageStep" >
+           <property name="pageStep">
             <number>20</number>
            </property>
-           <property name="value" >
+           <property name="value">
             <number>100</number>
            </property>
-           <property name="orientation" >
+           <property name="orientation">
             <enum>Qt::Horizontal</enum>
            </property>
           </widget>
          </item>
-         <item row="2" column="0" colspan="3" >
-          <widget class="QRadioButton" name="clearRadio" >
-           <property name="text" >
+         <item row="2" column="0" colspan="3">
+          <widget class="QRadioButton" name="clearRadio">
+           <property name="text">
             <string>Clear marked area</string>
            </property>
           </widget>
          </item>
-         <item row="5" column="0" colspan="3" >
-          <layout class="QHBoxLayout" >
-           <property name="spacing" >
+         <item row="5" column="0" colspan="3">
+          <layout class="QHBoxLayout">
+           <property name="spacing">
             <number>6</number>
            </property>
-           <property name="margin" >
+           <property name="margin">
             <number>0</number>
            </property>
            <item>
             <spacer>
-             <property name="orientation" >
+             <property name="orientation">
               <enum>Qt::Horizontal</enum>
              </property>
-             <property name="sizeHint" stdset="0" >
+             <property name="sizeHint" stdset="0">
               <size>
                <width>40</width>
                <height>20</height>
@@ -156,8 +157,8 @@
             </spacer>
            </item>
            <item>
-            <widget class="QPushButton" name="clearButton" >
-             <property name="text" >
+            <widget class="QPushButton" name="clearButton">
+             <property name="text">
               <string>&amp;Clear Marked Area</string>
              </property>
             </widget>
@@ -168,66 +169,66 @@
        </widget>
       </item>
       <item>
-       <widget class="QGroupBox" name="removeGroup" >
-        <property name="enabled" >
+       <widget class="QGroupBox" name="removeGroup">
+        <property name="enabled">
          <bool>true</bool>
         </property>
-        <property name="title" >
+        <property name="title">
          <string>Remove Marked Areas</string>
         </property>
-        <layout class="QGridLayout" >
-         <property name="margin" >
+        <layout class="QGridLayout">
+         <property name="margin">
           <number>9</number>
          </property>
-         <property name="spacing" >
+         <property name="spacing">
           <number>6</number>
          </property>
-         <item row="0" column="1" >
-          <widget class="QComboBox" name="removeMode" >
-           <property name="currentIndex" >
+         <item row="0" column="1">
+          <widget class="QComboBox" name="removeMode">
+           <property name="currentIndex">
             <number>0</number>
            </property>
-           <property name="maxVisibleItems" >
+           <property name="maxVisibleItems">
             <number>3</number>
            </property>
            <item>
-            <property name="text" >
+            <property name="text">
              <string>Automatic</string>
             </property>
            </item>
            <item>
-            <property name="text" >
+            <property name="text">
              <string>Vertical</string>
             </property>
            </item>
            <item>
-            <property name="text" >
+            <property name="text">
              <string>Horizontal</string>
             </property>
            </item>
           </widget>
          </item>
-         <item row="0" column="0" >
-          <widget class="QLabel" name="label_5" >
-           <property name="text" >
+         <item row="0" column="0">
+          <widget class="QLabel" name="label_5">
+           <property name="text">
             <string>Mode:</string>
            </property>
           </widget>
          </item>
-         <item row="2" column="0" colspan="2" >
-          <layout class="QHBoxLayout" >
-           <property name="spacing" >
+         <item row="2" column="0" colspan="2">
+          <layout class="QHBoxLayout">
+           <property name="spacing">
             <number>6</number>
            </property>
-           <property name="margin" >
+           <property name="margin">
             <number>0</number>
            </property>
            <item>
             <spacer>
-             <property name="orientation" >
+             <property name="orientation">
               <enum>Qt::Horizontal</enum>
              </property>
-             <property name="sizeHint" stdset="0" >
+             <property name="sizeHint" stdset="0">
               <size>
                <width>40</width>
                <height>20</height>
@@ -236,17 +237,17 @@
             </spacer>
            </item>
            <item>
-            <widget class="QPushButton" name="removeButton" >
-             <property name="text" >
+            <widget class="QPushButton" name="removeButton">
+             <property name="text">
               <string>Re&amp;move</string>
              </property>
             </widget>
            </item>
           </layout>
          </item>
-         <item row="1" column="0" colspan="2" >
-          <widget class="QCheckBox" name="iterateCheckBox" >
-           <property name="text" >
+         <item row="1" column="0" colspan="2">
+          <widget class="QCheckBox" name="iterateCheckBox">
+           <property name="text">
             <string>Iterate Until All Marked Removed</string>
            </property>
           </widget>
@@ -258,88 +259,74 @@
     </widget>
    </item>
    <item>
-    <widget class="QGroupBox" name="groupBox_3" >
-     <property name="title" >
+    <widget class="QGroupBox" name="groupBox_3">
+     <property name="title">
       <string>Other Parameters</string>
      </property>
-     <layout class="QGridLayout" >
-      <item row="0" column="0" >
-       <widget class="QLabel" name="convLabel" >
-        <property name="text" >
+     <layout class="QGridLayout">
+      <item row="0" column="0">
+       <widget class="QLabel" name="convLabel">
+        <property name="text">
          <string>Edge Detector:</string>
         </property>
        </widget>
       </item>
-      <item row="0" column="1" colspan="2" >
-       <widget class="QComboBox" name="edgeDetector" >
+      <item row="0" column="1" colspan="2">
+       <widget class="QComboBox" name="edgeDetector">
         <item>
-         <property name="text" >
+         <property name="text">
           <string>V1</string>
          </property>
         </item>
         <item>
-         <property name="text" >
+         <property name="text">
           <string>V_SQUARE</string>
          </property>
         </item>
         <item>
-         <property name="text" >
+         <property name="text">
           <string>Prewitt</string>
          </property>
         </item>
         <item>
-         <property name="text" >
+         <property name="text">
           <string>Sobel</string>
          </property>
         </item>
         <item>
-         <property name="text" >
+         <property name="text">
           <string>Laplacian</string>
          </property>
         </item>
        </widget>
       </item>
-      <item row="1" column="0" colspan="2" >
-       <widget class="QCheckBox" name="hdCheckBox" >
-        <property name="toolTip" >
+      <item row="1" column="0" colspan="2">
+       <widget class="QCheckBox" name="hdCheckBox">
+        <property name="toolTip">
          <string>Use the Forward Energy algorithm, which can greatly increase quality in some images. Comes at a minor perfromance cost.</string>
         </property>
-        <property name="text" >
+        <property name="text">
          <string>HD Quality</string>
         </property>
        </widget>
       </item>
-      <item row="1" column="2" >
-       <widget class="QCheckBox" name="energyCheckBox" >
-        <property name="text" >
+      <item row="1" column="2">
+       <widget class="QCheckBox" name="energyCheckBox">
+        <property name="text">
          <string>Forward Energy</string>
         </property>
        </widget>
       </item>
-      <item row="2" column="0" >
-       <widget class="QLabel" name="addWeightLabel" >
-        <property name="text" >
-         <string>Add Weight:</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="1" colspan="2" >
-       <widget class="QLineEdit" name="addWeightLineEdit" >
-        <property name="text" >
-         <string>500</string>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="0" >
-       <widget class="QLabel" name="weightScaleLabel" >
-        <property name="text" >
+      <item row="2" column="0">
+       <widget class="QLabel" name="weightScaleLabel">
+        <property name="text">
          <string>Weight Scale:</string>
         </property>
        </widget>
       </item>
-      <item row="3" column="1" colspan="2" >
-       <widget class="QLineEdit" name="weightScaleLineEdit" >
-        <property name="text" >
+      <item row="2" column="1" colspan="2">
+       <widget class="QLineEdit" name="weightScaleLineEdit">
+        <property name="text">
          <string>5000</string>
         </property>
        </widget>
@@ -348,65 +335,65 @@
     </widget>
    </item>
    <item>
-    <widget class="QGroupBox" name="groupBox" >
-     <property name="title" >
+    <widget class="QGroupBox" name="groupBox">
+     <property name="title">
       <string>Resize Dimensions</string>
      </property>
-     <layout class="QGridLayout" >
-      <property name="margin" >
+     <layout class="QGridLayout">
+      <property name="margin">
        <number>6</number>
       </property>
-      <property name="spacing" >
+      <property name="spacing">
        <number>6</number>
       </property>
-      <item row="0" column="0" >
-       <widget class="QLabel" name="widthLabel" >
-        <property name="text" >
+      <item row="0" column="0">
+       <widget class="QLabel" name="widthLabel">
+        <property name="text">
          <string>Width:</string>
         </property>
        </widget>
       </item>
-      <item row="0" column="1" >
-       <widget class="QLineEdit" name="widthLineEdit" />
+      <item row="0" column="1">
+       <widget class="QLineEdit" name="widthLineEdit"/>
       </item>
-      <item row="0" column="2" >
-       <widget class="QLabel" name="pixel1Label" >
-        <property name="text" >
+      <item row="0" column="2">
+       <widget class="QLabel" name="pixel1Label">
+        <property name="text">
          <string>pixels</string>
         </property>
        </widget>
       </item>
-      <item row="1" column="0" >
-       <widget class="QLabel" name="heightLabel" >
-        <property name="text" >
+      <item row="1" column="0">
+       <widget class="QLabel" name="heightLabel">
+        <property name="text">
          <string>Height:</string>
         </property>
        </widget>
       </item>
-      <item row="1" column="1" >
-       <widget class="QLineEdit" name="heightLineEdit" />
+      <item row="1" column="1">
+       <widget class="QLineEdit" name="heightLineEdit"/>
       </item>
-      <item row="1" column="2" >
-       <widget class="QLabel" name="pixel2Label" >
-        <property name="text" >
+      <item row="1" column="2">
+       <widget class="QLabel" name="pixel2Label">
+        <property name="text">
          <string>pixels</string>
         </property>
        </widget>
       </item>
-      <item row="2" column="0" colspan="3" >
-       <layout class="QHBoxLayout" >
-        <property name="spacing" >
+      <item row="2" column="0" colspan="3">
+       <layout class="QHBoxLayout">
+        <property name="spacing">
          <number>6</number>
         </property>
-        <property name="margin" >
+        <property name="margin">
          <number>0</number>
         </property>
         <item>
          <spacer>
-          <property name="orientation" >
+          <property name="orientation">
            <enum>Qt::Horizontal</enum>
           </property>
-          <property name="sizeHint" stdset="0" >
+          <property name="sizeHint" stdset="0">
            <size>
             <width>40</width>
             <height>20</height>
@@ -415,11 +402,11 @@
          </spacer>
         </item>
         <item>
-         <widget class="QPushButton" name="resizeButton" >
-          <property name="text" >
+         <widget class="QPushButton" name="resizeButton">
+          <property name="text">
            <string>&amp;Resize</string>
           </property>
-          <property name="default" >
+          <property name="default">
            <bool>true</bool>
           </property>
          </widget>
@@ -431,13 +418,13 @@
    </item>
    <item>
     <spacer>
-     <property name="orientation" >
+     <property name="orientation">
       <enum>Qt::Vertical</enum>
      </property>
-     <property name="sizeHint" stdset="0" >
+     <property name="sizeHint" stdset="0">
       <size>
        <width>20</width>
-       <height>40</height>
+       <height>0</height>
       </size>
      </property>
     </spacer>
@@ -461,11 +448,11 @@
    <receiver>resizeButton</receiver>
    <slot>click()</slot>
    <hints>
-    <hint type="sourcelabel" >
+    <hint type="sourcelabel">
      <x>172</x>
      <y>420</y>
     </hint>
-    <hint type="destinationlabel" >
+    <hint type="destinationlabel">
      <x>224</x>
      <y>495</y>
     </hint>
@@ -477,11 +464,11 @@
    <receiver>resizeButton</receiver>
    <slot>click()</slot>
    <hints>
-    <hint type="sourcelabel" >
+    <hint type="sourcelabel">
      <x>172</x>
      <y>451</y>
     </hint>
-    <hint type="destinationlabel" >
+    <hint type="destinationlabel">
      <x>224</x>
      <y>495</y>
     </hint>
@@ -493,11 +480,11 @@
    <receiver>removeGroup</receiver>
    <slot>setDisabled(bool)</slot>
    <hints>
-    <hint type="sourcelabel" >
+    <hint type="sourcelabel">
      <x>118</x>
      <y>275</y>
     </hint>
-    <hint type="destinationlabel" >
+    <hint type="destinationlabel">
      <x>118</x>
      <y>430</y>
     </hint>

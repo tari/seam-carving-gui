@@ -3,7 +3,7 @@
 
 //=========================================================================================================//
 //CAIR Matrix Library
-//Copyright (C) 2008 Joseph Auman (brain.recall@gmail.com)
+//Copyright (C) 2009 Joseph Auman (brain.recall@gmail.com)
 
 //=========================================================================================================//
 //This library is free software; you can redistribute it and/or
@@ -39,16 +39,6 @@
 #ifdef CML_DEBUG
 #include <iostream>
 #endif
-
-typedef unsigned char CML_byte;
-
-struct CML_RGBA
-{
-	CML_byte red;
-	CML_byte green;
-	CML_byte blue;
-	CML_byte alpha;
-};
 
 //=========================================================================================================//
 template <typename T>
@@ -302,10 +292,20 @@ private:
 	int max_y;
 };
 
+
 //=========================================================================================================//
-//typedef'ing to make it a little cleaner
-typedef CML_Matrix<CML_RGBA> CML_color;
-typedef CML_Matrix<CML_byte> CML_gray;
-typedef CML_Matrix<int> CML_int;
+typedef unsigned char CML_byte;
+
+//standard 32 bit pixel
+struct CML_RGBA
+{
+	CML_byte red;
+	CML_byte green;
+	CML_byte blue;
+	CML_byte alpha;
+};
+
+typedef CML_Matrix<CML_RGBA> CML_color; //use for images
+typedef CML_Matrix<int> CML_int; //use for weights
 
 #endif //CAIR_CML_H

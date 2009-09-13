@@ -1,4 +1,4 @@
-User's ReadMe v2.17
+User's ReadMe v2.18
 
 CAIR - Content Aware Image Resizer
 Copyright (C) 2008 Joseph Auman (brain.recall@gmail.com)
@@ -126,7 +126,6 @@ Functions:
              CML_int * S_Weights,
              int goal_x,
              int goal_y,
-             int add_weight,
              CAIR_convolution conv,
              CAIR_energy ener,
              CML_int * D_Weights,
@@ -144,15 +143,6 @@ Functions:
    allocated.)
 -- goal_x: the desired width of the Dest image
 -- goal_y: the desired height of the Dest image
--- add_weight: the amount of artificial weight to be applied when enlarging
-   The algorithm requires some artificial weight to be applied to new seams and the
-   previous least-energy seam, otherwise they will be chosen again and again,
-   which will lead to stretching artifacts. add_weight should be less than the
-   highest protection weight (by about 25% at least). I suggest at least a value
-   of 25 to prevent most stretching. For some reason I prefer about 500, but even
-   down to 75 works pretty well. If the value is too high (if that’s desired), it
-   may cause CAIR to start inserting seams into areas that have been protected by
-   a large weight.
 -- conv: The possible convolution kernels to use. See the above discussion.
    It is important to note that if using V_SQUARE the weights must be at least an order
    of magnitude larger for similar operation. add_weight needs to be several orders of 
@@ -189,7 +179,6 @@ Functions:
                      CML_int * S_Weights,
                      CAIR_direction choice,
                      int max_attempts,
-                     int add_weight,
                      CAIR_convolution conv,
                      CAIR_energy ener,
                      CML_int * D_Weights,
@@ -207,7 +196,6 @@ Functions:
    to give the algorithm another chance at it. There are situations, however, where the
    algorithm will not be able to remove the requested portions due to other areas makred
    for protection with a high weight.
--- add_weight: See the discussion above in CAIR()
 -- conv: The edge detection kernel.
 -- ener: The energy algorithm.
 -- D_Weights: pointer to the destination weights
@@ -215,31 +203,10 @@ Functions:
 -- CAIR_callback: a function pointer to a status/callback system
 -- RETURNS: true if the resize ran to completion, false if it was canceled by CAIR_callback.
 
-- void CAIR_Image_Map( CML_color * Source, CML_int * Weights, CAIR_convolution conv, CAIR_energy ener, CML_int * Map )
--- EXPERIMENTAL
--- Source: pointer to the source image
--- Weights: pointer to the given weights of the image
--- conv: The edge detection kernel.
--- ener: The energy algorithm.
--- Map: Pointer to the resolution map. Each element will be filled with the largest resolution
-   (in this case width) that the pixel is still visible in the image. This precomputes all the
-   removals from the origional size down to 3 pixels in width. The Map then could be encoded into
-   an image file so that other systems viewing the image could resize the image with far less
-   computational overhead.
-
-- void CAIR_Map_Resize( CML_color * Source, CML_int * Map, int goal_x, CML_color * Dest )
--- EXPERIMENTAL
--- Source: pointer to the source image
--- Map: pointer to the source image's resolution map as described above.
--- goal_x: The desired width of the output image
--- Dest: pointer to the output image. Note: This function doesn't average-blend the pixels like CAIR(),
-   so it will produce different results than CAIR().
-
 - bool CAIR_HD( CML_color * Source,
                 CML_int * S_Weights,
                 int goal_x,
                 int goal_y,
-                int add_weight,
                 CAIR_convolution conv,
                 CAIR_energy ener,
                 CML_int * D_Weights,
@@ -306,6 +273,7 @@ David Phillip Oster
 Matt Newell
 Klaus Nordby
 Alexandre Prokoudine
+Peter Berrington
 
 Further questions on CAIR can be directed to the source code, or my email.
 
