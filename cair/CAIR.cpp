@@ -236,7 +236,7 @@ void _sem_destroy(void * semStructure)
     #ifdef __APPLE__
     semaphore_destroy(mach_task_self(), *((semaphore_t *)semStructure));
     #else
-    sem_destory((sem_t *)semStructure);
+    sem_destroy((sem_t *)semStructure);
     #endif
 }
 
