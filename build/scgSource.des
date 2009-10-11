@@ -1,0 +1,23 @@
+description: "Package SeamCarvingGui src"
+properties: ['base.cfg', 'scg.cfg']
+scripts: ['scg.sh']
+default_host: "!py: props.build_host_by_os"
+steps:
+[
+  #Build
+  {
+    name: 'clean_source'
+    conditions: [ 'props.clean_build' ]
+  }
+  {
+    name: 'checkout_source'
+    conditions: [ 'props.clean_build' ]
+  }
+  {
+    name: 'update_source'
+    conditions: [ 'not props.clean_build' ]
+  }
+  {
+    name: 'package_src'
+  }
+]
