@@ -23,8 +23,13 @@ steps:
   }
   {
     name: 'make-windows'
-    conditions: [ 'props.clean_build' ]
-    condition: ['props.target_platform.startswith("win")']
+    conditions: [ 'props.clean_build',
+                  'props.target_platform.startswith("win")']
+  }
+  {
+    name: 'make-mac'
+    conditions: [ 'props.clean_build',
+                  'props.target_platform == "mac"']
   }
   {
     name: 'clean_stagearea'
@@ -35,7 +40,17 @@ steps:
 #    conditions: [ 'props.clean_build' ]
   }
   {
-    name: 'setup_package'
-    condition: ['props.target_platform.startswith("win")']
+    name: 'prepare_stage_win'
+    conditions: [ 
+#                  'props.clean_build',
+                  'props.target_platform.startswith("win")']
+  }
+  {
+    name: 'setup_package_win'
+    conditions: ['props.target_platform.startswith("win")']
+  }
+  {
+    name: 'setup_package_mac'
+    conditions: ['props.target_platform == "mac"']
   }
 ]
