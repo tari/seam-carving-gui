@@ -72,7 +72,7 @@
 //  - Removed "namespace std" from source headers. Special thanks to David Oster.
 //  - Removed the clipping Get() method from the CML. This makes the CML generic again.
 //  - Comment clean-ups.
-//  - Comments have been spell-checked. Apparently, I don’t speel so good. (thanks again to David Oster)
+//  - Comments have been spell-checked. Apparently, I don't speel so good. (thanks again to David Oster)
 //CAIR v2.14 Changelog:
 //  - CAIR has been relicensed under the LGPLv2.1
 //CAIR v2.13 Changelog:
@@ -189,7 +189,56 @@
 #include <cmath> //for abs(), floor()
 #include <limits> //for max int
 #include <pthread.h>
+
+#ifdef __APPLE__
+#include <mach/semaphore.h>
+#include <mach/task.h>
+#define SEM_T semaphore_t
+extern mach_port_t mach_task_self_;
+#define mach_task_self() mach_task_self_
+//#include <mach/mach.h>
+//task_t mach_task_self(void); //returns the task port of the current thread
+#else
 #include <semaphore.h>
+#define SEM_T sem_t
+#endif
+
+void _sem_create(void * semStructure, int initialValue)
+{
+    #ifdef __APPLE__
+    semaphore_create(mach_task_self(), (semaphore_t *)semStructure, SYNC_POLICY_FIFO, initialValue);
+    #else
+    int pshared = 0;
+    sem_init((sem_t *)semStructure, pshared, initialValue);
+    #endif
+}
+
+void _sem_signal(void * semStructure)
+{
+    #ifdef __APPLE__
+    semaphore_signal(*((semaphore_t *)semStructure));
+    #else
+    sem_post((sem_t *)semStructure);
+    #endif
+}
+
+void _sem_wait(void * semStructure)
+{
+    #ifdef __APPLE__
+    semaphore_wait(*((semaphore_t *)semStructure));
+    #else
+    sem_wait((sem_t *)semStructure);
+    #endif
+}
+
+void _sem_destroy(void * semStructure)
+{
+    #ifdef __APPLE__
+    semaphore_destroy(mach_task_self(), *((semaphore_t *)semStructure));
+    #else
+    sem_destory((sem_t *)semStructure);
+    #endif
+}
 
 using namespace std;
 
@@ -245,10 +294,10 @@ pthread_t * add_threads;
 int num_threads = CAIR_NUM_THREADS;
 
 //Thread Semaphores
-sem_t remove_sem[3]; //start, edge_start, finish
-sem_t add_sem[3]; //start, build_start, finish
-sem_t edge_sem[2]; //start, finish
-sem_t gray_sem[2]; //start, finish
+SEM_T remove_sem[3]; //start, edge_start, finish
+SEM_T add_sem[3]; //start, build_start, finish
+SEM_T edge_sem[2]; //start, finish
+SEM_T gray_sem[2]; //start, finish
 
 //early declarations on the threading functions
 void Startup_Threads();
@@ -281,7 +330,7 @@ void * Gray_Quadrant( void * id )
 	while( true )
 	{
 		//wait for the thread to get a signal to start
-		sem_wait( &(gray_sem[0]) );
+		_sem_wait( &(gray_sem[0]) );
 
 		//get updated parameters
 		Thread_Params gray_area = thread_info[num];
@@ -302,7 +351,7 @@ void * Gray_Quadrant( void * id )
 		}
 
 		//signal we're done
-		sem_post( &(gray_sem[1]) );
+		_sem_signal( &(gray_sem[1]) );
 	}
 
 	return NULL;
@@ -329,13 +378,13 @@ void Grayscale_Image( CML_image_ptr * Source )
 	//startup the threads
 	for( int i = 0; i < num_threads; i++ )
 	{
-		sem_post( &(gray_sem[0]) );
+		_sem_signal( &(gray_sem[0]) );
 	}
 
 	//now wait for them to come back to us
 	for( int i = 0; i < num_threads; i++ )
 	{
-		sem_wait( &(gray_sem[1]) );
+		_sem_wait( &(gray_sem[1]) );
 	}
 
 } //end Grayscale_Image()
@@ -441,7 +490,7 @@ void * Edge_Quadrant( void * id )
 
 	while( true )
 	{
-		sem_wait( &(edge_sem[0]) );
+		_sem_wait( &(edge_sem[0]) );
 
 		//get updated parameters
 		Thread_Params edge_area = thread_info[num];
@@ -469,7 +518,7 @@ void * Edge_Quadrant( void * id )
 		}
 
 		//signal we're done
-		sem_post( &(edge_sem[1]) );
+		_sem_signal( &(edge_sem[1]) );
 	}
 
 	return NULL;
@@ -504,7 +553,7 @@ void Edge_Detect( CML_image_ptr * Source, CAIR_convolution conv )
 	//create the threads
 	for( int i = 0; i < num_threads; i++ )
 	{
-		sem_post( &(edge_sem[0]) );
+		_sem_signal( &(edge_sem[0]) );
 	}
 
 	//while those are running we can go back and do the boundry pixels with the extra safety checks
@@ -517,7 +566,7 @@ void Edge_Detect( CML_image_ptr * Source, CAIR_convolution conv )
 	//now wait on them
 	for( int i = 0; i < num_threads; i++ )
 	{
-		sem_wait( &(edge_sem[1]) );
+		_sem_wait( &(edge_sem[1]) );
 	}
 
 } //end Edge_Detect()
@@ -644,7 +693,7 @@ void Energy_Map(CML_image_ptr * Source, CAIR_energy ener, int * Path)
 		boundry_max_x = 0;
 
 		//boundry conditions
-		if(max_x == width)
+		if(max_x == width && width > 0)
 		{
 			(*Source)(width,y)->energy = MIN((*Source)(width-1,y-1)->energy, (*Source)(width,y-1)->energy) + (*Source)(width,y)->edge + (*Source)(width,y)->weight;
 			boundry_max_x = 1; //prevent this value from being calculated in the below loops
@@ -749,7 +798,7 @@ void * Add_Quadrant( void * id )
 
 	while( true )
 	{
-		sem_wait( &(add_sem[0]) );
+		_sem_wait( &(add_sem[0]) );
 
 		//get updated_parameters
 		add_area = thread_info[num];
@@ -772,10 +821,10 @@ void * Add_Quadrant( void * id )
 		}
 
 		//signal that part is done
-		sem_post( &(add_sem[2]) );
+		_sem_signal( &(add_sem[2]) );
 
 		//wait to begin the adding
-		sem_wait( &(add_sem[1]) );
+		_sem_wait( &(add_sem[1]) );
 
 		//get updated_parameters
 		add_area = thread_info[num];
@@ -805,7 +854,7 @@ void * Add_Quadrant( void * id )
 		}
 
 		//signal the add thread is done
-		sem_post( &(add_sem[2]) );
+		_sem_signal( &(add_sem[2]) );
 
 	} //end while(true)
 	return NULL;
@@ -837,13 +886,13 @@ void Add_Path( CML_image * Resize_img, CML_image * Source, CML_image_ptr * Sourc
 	//startup the threads
 	for( int i = 0; i < num_threads; i++ )
 	{
-		sem_post( &(add_sem[0]) );
+		_sem_signal( &(add_sem[0]) );
 	}
 
 	//now wait for them to come back to us
 	for( int i = 0; i < num_threads; i++ )
 	{
-		sem_wait( &(add_sem[2]) );
+		_sem_wait( &(add_sem[2]) );
 	}
 
 	//ok, we can now resize the source to the final size
@@ -852,13 +901,13 @@ void Add_Path( CML_image * Resize_img, CML_image * Source, CML_image_ptr * Sourc
 
 	for( int i = 0; i < num_threads; i++ )
 	{
-		sem_post( &(add_sem[1]) );
+		_sem_signal( &(add_sem[1]) );
 	}
 
 	//now wait on them again
 	for( int i = 0; i < num_threads; i++ )
 	{
-		sem_wait( &(add_sem[2]) );
+		_sem_wait( &(add_sem[2]) );
 	}
 
 } //end Add_Path()
@@ -912,7 +961,7 @@ void * Remove_Quadrant( void * id )
 
 	while( true )
 	{
-		sem_wait( &(remove_sem[0]) );
+		_sem_wait( &(remove_sem[0]) );
 
 		//get updated parameters
 		remove_area = thread_info[num];
@@ -958,10 +1007,10 @@ void * Remove_Quadrant( void * id )
 		}
 
 		//signal that part is done
-		sem_post( &(remove_sem[2]) );
+		_sem_signal( &(remove_sem[2]) );
 
 		//wait to begin edge removal
-		sem_wait( &(remove_sem[1]) );
+		_sem_wait( &(remove_sem[1]) );
 
 		//get updated parameters
 		remove_area = thread_info[num];
@@ -994,7 +1043,7 @@ void * Remove_Quadrant( void * id )
 		}
 
 		//signal we're now done
-		sem_post( &(remove_sem[2]) );
+		_sem_signal( &(remove_sem[2]) );
 	} //end while( true )
 
 	return NULL;
@@ -1023,12 +1072,12 @@ void Remove_Path( CML_image_ptr * Source, int * Path, CAIR_convolution conv )
 	//start the threads
 	for( int i = 0; i < num_threads; i++ )
 	{
-		sem_post( &(remove_sem[0]) );
+		_sem_signal( &(remove_sem[0]) );
 	}
 	//now wait on them
 	for( int i = 0; i < num_threads; i++ )
 	{
-		sem_wait( &(remove_sem[2]) );
+		_sem_wait( &(remove_sem[2]) );
 	}
 
 	//now we can safely resize everyone down
@@ -1038,13 +1087,13 @@ void Remove_Path( CML_image_ptr * Source, int * Path, CAIR_convolution conv )
 	//we must wait for the grayscale to be complete before we can recalculate changed edge values
 	for( int i = 0; i < num_threads; i++ )
 	{
-		sem_post( &(remove_sem[1]) );
+		_sem_signal( &(remove_sem[1]) );
 	}
 
 	//now wait on them, ... again
 	for( int i = 0; i < num_threads; i++ )
 	{
-		sem_wait( &(remove_sem[2]) );
+		_sem_wait( &(remove_sem[2]) );
 	}
 } //end Remove_Path()
 
@@ -1094,16 +1143,16 @@ bool CAIR_Remove( CML_image_ptr * Source, int goal_x, CAIR_convolution conv, CAI
 void Startup_Threads()
 {
 	//create semaphores
-	sem_init( &(remove_sem[0]), 0, 0 ); //start
-	sem_init( &(remove_sem[1]), 0, 0 ); //edge_start
-	sem_init( &(remove_sem[2]), 0, 0 ); //finish
-	sem_init( &(add_sem[0]), 0, 0 ); //start
-	sem_init( &(add_sem[1]), 0, 0 ); //build_start
-	sem_init( &(add_sem[2]), 0, 0 ); //finish
-	sem_init( &(edge_sem[0]), 0, 0 ); //start
-	sem_init( &(edge_sem[1]), 0, 0 ); //finish
-	sem_init( &(gray_sem[0]), 0, 0 ); //start
-	sem_init( &(gray_sem[1]), 0, 0 ); //finish
+	_sem_create( &(remove_sem[0]), 0 ); //start
+	_sem_create( &(remove_sem[1]), 0 ); //edge_start
+	_sem_create( &(remove_sem[2]), 0 ); //finish
+	_sem_create( &(add_sem[0]), 0 ); //start
+	_sem_create( &(add_sem[1]), 0 ); //build_start
+	_sem_create( &(add_sem[2]), 0 ); //finish
+	_sem_create( &(edge_sem[0]), 0 ); //start
+	_sem_create( &(edge_sem[1]), 0 ); //finish
+	_sem_create( &(gray_sem[0]), 0 ); //start
+	_sem_create( &(gray_sem[1]), 0 ); //finish
 
 	//create the thread handles
 	remove_threads = new pthread_t[num_threads];
@@ -1139,10 +1188,10 @@ void Shutdown_Threads()
 	//start them up
 	for( int i = 0; i < num_threads; i++ )
 	{
-		sem_post( &(remove_sem[0]) );
-		sem_post( &(add_sem[0]) );
-		sem_post( &(edge_sem[0]) );
-		sem_post( &(gray_sem[0]) );
+		_sem_signal( &(remove_sem[0]) );
+		_sem_signal( &(add_sem[0]) );
+		_sem_signal( &(edge_sem[0]) );
+		_sem_signal( &(gray_sem[0]) );
 	}
 
 	//wait for the joins
@@ -1163,16 +1212,16 @@ void Shutdown_Threads()
 	delete[] thread_info;
 
 	//delete the semaphores
-	sem_destroy( &(remove_sem[0]) ); //start
-	sem_destroy( &(remove_sem[1]) ); //edge_start
-	sem_destroy( &(remove_sem[2]) ); //finish
-	sem_destroy( &(add_sem[0]) ); //start
-	sem_destroy( &(add_sem[1]) ); //build_start
-	sem_destroy( &(add_sem[2]) ); //finish
-	sem_destroy( &(edge_sem[0]) ); //start
-	sem_destroy( &(edge_sem[1]) ); //finish
-	sem_destroy( &(gray_sem[0]) ); //start
-	sem_destroy( &(gray_sem[1]) ); //finish
+	_sem_destroy( &(remove_sem[0]) ); //start
+	_sem_destroy( &(remove_sem[1]) ); //edge_start
+	_sem_destroy( &(remove_sem[2]) ); //finish
+	_sem_destroy( &(add_sem[0]) ); //start
+	_sem_destroy( &(add_sem[1]) ); //build_start
+	_sem_destroy( &(add_sem[2]) ); //finish
+	_sem_destroy( &(edge_sem[0]) ); //start
+	_sem_destroy( &(edge_sem[1]) ); //finish
+	_sem_destroy( &(gray_sem[0]) ); //start
+	_sem_destroy( &(gray_sem[1]) ); //finish
 }
 
 
